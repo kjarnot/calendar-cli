@@ -52,9 +52,9 @@ def test_render_text_groups_by_calendar_and_day():
         "  Wed 2026-10-21",
         "    work:1       thru Mon 10-26 PTO",
         "  Thu 2026-10-22",
-        "    work:2       12:00–13:00  Workout  [Exercise]",
+        "    work:2       12:00–13:00    Workout  [Exercise]",
         "  Fri 2026-10-23",
-        "    work:3       10:00–10:30  Standup",
+        "    work:3       10:00–10:30    Standup",
         "personal (Google · primary)",
         "  (no events)",
         "other (Google · x)",
@@ -90,3 +90,14 @@ def test_render_json_has_refs_and_omits_raw():
         "error": "token expired",
         "events": [],
     }
+
+
+def test_long_alias_widens_ref_column():
+    listing = CalendarListing(
+        alias="e2e-personal",
+        provider="google",
+        label="G",
+        events=[event("e2e-personal", "1", "Lunch", at(22, 12), at(22, 13))],
+    )
+
+    assert "    e2e-personal:1 12:00–13:00  Lunch" in render_text([listing])

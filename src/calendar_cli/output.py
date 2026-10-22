@@ -39,6 +39,8 @@ def render_text(listings: list[CalendarListing]) -> str:
         if not listing.events:
             lines.append("  (no events)")
             continue
+        ref_width = max(12, len(f"{listing.alias}:{len(listing.events)}"))
+        time_width = max(12, *(len(time_span(e)) for e in listing.events))
         index = 1
         for day, day_events in groupby(listing.events, key=lambda e: e.start.date()):
             lines.append(f"  {day:%a %Y-%m-%d}")
@@ -46,7 +48,7 @@ def render_text(listings: list[CalendarListing]) -> str:
                 ref = f"{listing.alias}:{index}"
                 index += 1
                 tags = f"  [{', '.join(event.categories)}]" if event.categories else ""
-                lines.append(f"    {ref:<12} {_time_span(event):<12} {event.title}{tags}")
+                lines.append(f"    {ref:<{ref_width}} {time_span(event):<{time_width}} {event.title}{tags}")
     return "\n".join(lines)
 
 
@@ -69,7 +71,7 @@ def render_json(listings: list[CalendarListing], start: datetime, end: datetime)
     return json.dumps(payload, indent=2)
 
 
-def _time_span(event: Event) -> str:
+def time_span(event: Event) -> str:
     if event.all_day:
         # All-day ends are exclusive midnights, so the last day is the day before `end`.
         last_day = (event.end - timedelta(days=1)).date()

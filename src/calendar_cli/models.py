@@ -39,3 +39,39 @@ class Event(BaseModel):
     web_link: str | None = None
     # The provider's original payload, kept so a restore loses as little as possible.
     raw: dict[str, Any] = Field(default_factory=dict, exclude=True)
+
+    def snapshot(self) -> dict[str, Any]:
+        """Full JSON-safe copy, including raw, for the journal."""
+        return {**self.model_dump(mode="json"), "raw": self.raw}
+
+    @classmethod
+    def from_snapshot(cls, data: dict[str, Any]) -> "Event":
+        return cls.model_validate(data)
+
+
+class EventDraft(BaseModel):
+    """Everything needed to create an event."""
+
+    title: str
+    start: datetime
+    end: datetime
+    all_day: bool = False
+    location: str | None = None
+    description: str | None = None
+    categories: list[str] = []
+    attendees: list[str] = []
+
+
+class EventChanges(BaseModel):
+    """A partial update. Only fields explicitly set are changed; setting one to None clears it."""
+
+    title: str | None = None
+    start: datetime | None = None
+    end: datetime | None = None
+    all_day: bool | None = None
+    location: str | None = None
+    description: str | None = None
+    categories: list[str] | None = None
+
+    def changed(self) -> dict[str, Any]:
+        return {name: getattr(self, name) for name in self.model_fields_set}

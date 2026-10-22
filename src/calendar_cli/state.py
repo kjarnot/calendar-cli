@@ -24,7 +24,7 @@ def state_dir() -> Path:
     return path
 
 
-def _private_file(path: Path) -> Path:
+def private_file(path: Path) -> Path:
     """Create the file if needed and restrict it to the owner, since it holds event data."""
     path.touch(mode=0o600, exist_ok=True)
     path.chmod(0o600)
@@ -35,7 +35,7 @@ def setup_logging(verbose: bool = False) -> None:
     """Send the calendar_cli logger to a rotating app.log in the state directory."""
     if any(isinstance(h, RotatingFileHandler) for h in logger.handlers):
         return
-    log_path = _private_file(state_dir() / "app.log")
+    log_path = private_file(state_dir() / "app.log")
     handler = RotatingFileHandler(log_path, maxBytes=1_000_000, backupCount=3)
     handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(name)s: %(message)s"))
     logger.addHandler(handler)
@@ -48,7 +48,7 @@ def save_refs(refs: dict[str, tuple[str, str]]) -> None:
         "saved_at": datetime.now(UTC).isoformat(),
         "refs": {ref: {"calendar": alias, "event_id": event_id} for ref, (alias, event_id) in refs.items()},
     }
-    path = _private_file(state_dir() / "refs.json")
+    path = private_file(state_dir() / "refs.json")
     path.write_text(json.dumps(payload, indent=2))
 
 

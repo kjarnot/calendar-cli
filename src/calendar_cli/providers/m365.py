@@ -10,14 +10,32 @@ import httpx
 import msal
 
 from calendar_cli.config import M365Account
-from calendar_cli.models import Attendee, CalendarInfo, Event
-from calendar_cli.providers.base import ProviderError
+from calendar_cli.models import Attendee, CalendarInfo, Event, EventChanges, EventDraft
+from calendar_cli.providers.base import InputError, ProviderError
 
 GRAPH_URL = "https://graph.microsoft.com/v1.0"
 GRAPH_SCOPE = "https://graph.microsoft.com/.default"
 EVENT_FIELDS = (
     "id,subject,start,end,isAllDay,location,bodyPreview,categories,attendees,"
     "organizer,isOrganizer,seriesMasterId,type,webLink"
+)
+
+# Graph event fields copied from a snapshot when recreating a deleted event.
+RESTORE_FIELDS = (
+    "subject",
+    "body",
+    "start",
+    "end",
+    "isAllDay",
+    "location",
+    "categories",
+    "showAs",
+    "sensitivity",
+    "importance",
+    "isReminderOn",
+    "reminderMinutesBeforeStart",
+    "isOnlineMeeting",
+    "onlineMeetingProvider",
 )
 
 logger = logging.getLogger("calendar_cli.m365")
@@ -54,6 +72,7 @@ class M365Provider:
         self.timezone = timezone
         self._token = token_provider or msal_token_provider(account)
         self._http = http or httpx.Client(timeout=30)
+        self._categories: list[str] | None = None
 
     def list_calendars(self) -> list[CalendarInfo]:
         items = self._get_all(
@@ -90,23 +109,106 @@ class M365Provider:
             return f"/users/{self.account.user}/calendar"
         return f"/users/{self.account.user}/calendars/{calendar_id}"
 
-    def _get_all(self, path: str, params: dict[str, str] | None) -> list[dict[str, Any]]:
-        """GET a Graph collection, following @odata.nextLink pages."""
+    def get_event(self, calendar_alias: str, calendar_id: str, event_id: str) -> Event:
+        # Full payload (no $select) so a later restore has the body and every setting.
+        return self._to_event(
+            calendar_alias, self._send("GET", f"/users/{self.account.user}/events/{event_id}")
+        )
+
+    def create_event(self, calendar_alias: str, calendar_id: str, draft: EventDraft) -> Event:
+        payload = self._payload(draft.model_dump())
+        return self._to_event(
+            calendar_alias, self._send("POST", f"{self._calendar_path(calendar_id)}/events", json=payload)
+        )
+
+    def update_event(
+        self, calendar_alias: str, calendar_id: str, event_id: str, changes: EventChanges
+    ) -> Event:
+        payload = self._payload(changes.changed())
+        return self._to_event(
+            calendar_alias, self._send("PATCH", f"/users/{self.account.user}/events/{event_id}", json=payload)
+        )
+
+    def delete_event(self, calendar_id: str, event_id: str) -> None:
+        self._send("DELETE", f"/users/{self.account.user}/events/{event_id}")
+
+    def restore_event(self, calendar_alias: str, calendar_id: str, snapshot: Event) -> Event:
+        """Recreate the event from its snapshot; Graph has no undelete, so the ID changes."""
+        if not snapshot.raw:
+            raise InputError("the snapshot has no Graph payload to restore from")
+        payload = {key: snapshot.raw[key] for key in RESTORE_FIELDS if snapshot.raw.get(key) is not None}
+        # Attendees get a fresh invitation; their old responses cannot be carried over.
+        payload["attendees"] = [
+            {"emailAddress": a["emailAddress"], "type": a.get("type", "required")}
+            for a in snapshot.raw.get("attendees", [])
+        ]
+        return self._to_event(
+            calendar_alias, self._send("POST", f"{self._calendar_path(calendar_id)}/events", json=payload)
+        )
+
+    def _payload(self, fields: dict[str, Any]) -> dict[str, Any]:
+        """Translate neutral event fields into a Graph event body."""
+        payload: dict[str, Any] = {}
+        if "title" in fields:
+            payload["subject"] = fields["title"]
+        for name in ("start", "end"):
+            if fields.get(name) is not None:
+                local = fields[name].astimezone(ZoneInfo(self.timezone)).replace(tzinfo=None)
+                payload[name] = {"dateTime": local.isoformat(), "timeZone": self.timezone}
+        if fields.get("all_day") is not None:
+            payload["isAllDay"] = fields["all_day"]
+        if "location" in fields:
+            payload["location"] = {"displayName": fields["location"] or ""}
+        if "description" in fields:
+            payload["body"] = {"contentType": "text", "content": fields["description"] or ""}
+        if "categories" in fields:
+            categories = fields["categories"] or []
+            self._check_categories(categories)
+            payload["categories"] = categories
+        if fields.get("attendees"):
+            payload["attendees"] = [
+                {"emailAddress": {"address": email}, "type": "required"} for email in fields["attendees"]
+            ]
+        return payload
+
+    def _check_categories(self, categories: list[str]) -> None:
+        if not categories:
+            return
+        if self._categories is None:
+            items = self._get_all(f"/users/{self.account.user}/outlook/masterCategories", params=None)
+            self._categories = [item["displayName"] for item in items]
+        unknown = [c for c in categories if c not in self._categories]
+        if unknown:
+            raise InputError(
+                f"unknown M365 category {', '.join(map(repr, unknown))}; valid: {', '.join(self._categories)}"
+            )
+
+    def _send(
+        self, method: str, path_or_url: str, params: dict[str, str] | None = None, json: dict | None = None
+    ) -> dict[str, Any]:
+        """Make one Graph request and return its JSON body ({} for 204 No Content)."""
         headers = {
             "Authorization": f"Bearer {self._token()}",
             "Prefer": f'outlook.timezone="{self.timezone}"',
         }
-        url: str | None = f"{GRAPH_URL}{path}"
+        url = path_or_url if path_or_url.startswith("https://") else f"{GRAPH_URL}{path_or_url}"
+        logger.debug("%s %s", method, url)
+        try:
+            response = self._http.request(method, url, params=params, headers=headers, json=json)
+        except httpx.HTTPError as exc:
+            raise ProviderError(f"M365 request failed: {exc}") from None
+        if response.status_code == 404:
+            raise InputError(f"M365 event or calendar not found: {_graph_error(response)}")
+        if response.status_code >= 400:
+            raise ProviderError(f"M365 returned HTTP {response.status_code}: {_graph_error(response)}")
+        return response.json() if response.content else {}
+
+    def _get_all(self, path: str, params: dict[str, str] | None) -> list[dict[str, Any]]:
+        """GET a Graph collection, following @odata.nextLink pages."""
+        url: str | None = path
         items: list[dict[str, Any]] = []
         while url:
-            logger.debug("GET %s", url)
-            try:
-                response = self._http.get(url, params=params, headers=headers)
-            except httpx.HTTPError as exc:
-                raise ProviderError(f"M365 request failed: {exc}") from None
-            if response.status_code != 200:
-                raise ProviderError(f"M365 returned HTTP {response.status_code}: {_graph_error(response)}")
-            body = response.json()
+            body = self._send("GET", url, params=params)
             items.extend(body.get("value", []))
             url = body.get("@odata.nextLink")
             params = None  # nextLink carries the full query; an empty dict would erase it

@@ -22,7 +22,7 @@ The command is `calendar-cli`.
 calendar-cli auth <account>                 # one-time Google OAuth login (M365 needs none)
 calendar-cli calendars [--account NAME]     # list calendars each account can see, with IDs
 calendar-cli list [--from DATE] [--to DATE] [--calendar ALIAS ...] [--json]
-calendar-cli add TITLE --start DATETIME (--end DATETIME | --duration DUR)
+calendar-cli add TITLE --start DATETIME [--end DATETIME | --duration DUR]
                  --calendar ALIAS [--all-day] [--location TEXT] [--description TEXT]
                  [--category NAME] [--attendee EMAIL ...] [--json]
 calendar-cli update REF [--title ...] [--start ...] [--end | --duration ...]
@@ -41,6 +41,9 @@ calendar-cli undo [OP_ID] [--yes]           # undo the latest not-yet-undone op,
   relative offsets (`+3d`, `-1w`), weekday names (`friday` = the next Friday).
 - Durations: `30m`, `1h`, `1h30m`, `2d`.
 - Times without a zone use `default_timezone` from config.
+- `add`: a timed event defaults to 1 hour; an all-day event to 1 day. A whole-day `--end`
+  on an all-day event includes that day.
+- `update --start` without `--end`/`--duration` keeps the event's length.
 
 ### 2.2 Event references (REF)
 
@@ -213,16 +216,21 @@ Reads (`list`, `calendars`) are logged to `app.log` only, not to the journal.
 - An undo is itself journaled (`action: "undo"`, `undoes: <op_id>`) and marks the original
   `undone_by`. An undo cannot itself be undone in v1.
 - Undo shows what it will do and asks for confirmation unless `--yes`.
+- Undo of an update puts back only the fields that differ between `before` and `after`, so
+  changes made elsewhere to other fields survive. On M365, a restored description is plain
+  text (Graph's preview), not the original HTML.
 - Undo of a **series** delete is refused in v1 with a clear message.
-- When the journal's event ID is stale (for example, an M365 restore produced a new ID),
-  the undo entry records the new ID so later operations follow it.
+- When the journal's event ID is stale (an M365 restore produces a new ID), undo follows
+  the chain of restores in the journal to the event's current ID.
+- Failed writes and failed undos are journaled with `status: "failed"` and never undone.
 
 ## 8. Safety
 
 - `delete`, `update` and `undo` show the event and ask for confirmation unless `--yes`.
 - If the event has attendees, the prompt says invitations/cancellations will be sent.
-- Deleting a meeting the user does not organize: M365 declines it with no response message;
-  Google removes it from the user's calendar only. Both are stated in the prompt.
+- Deleting a meeting the user does not organize is refused in v1 (decline it in Outlook or
+  Google Calendar instead), because neither provider can cleanly undo it.
+- On Google, writes use `sendUpdates=all`, so attendees are emailed, matching Outlook.
 - `delete` without `--series` on a recurring occurrence removes only that occurrence.
 
 ## 9. Tech stack

@@ -12,15 +12,20 @@ from oauthlib.oauth2.rfc6749.errors import OAuth2Error
 from rich.console import Console
 from rich.markup import escape
 
-from calendar_cli.config import Config, ConfigError, M365Account, load_config
-from calendar_cli.dates import DateParseError, parse_range
+from calendar_cli import journal, operations
+from calendar_cli.config import CalendarEntry, Config, ConfigError, M365Account, load_config
+from calendar_cli.dates import DateParseError, event_times, parse_date, parse_duration, parse_range
+from calendar_cli.journal import JournalEntry
+from calendar_cli.models import Event, EventChanges, EventDraft
+from calendar_cli.operations import describe
 from calendar_cli.output import CalendarListing, assign_refs, render_json, render_text
 from calendar_cli.providers import CalendarProvider, ProviderError, build_provider
+from calendar_cli.providers.base import InputError
 from calendar_cli.providers.google import sign_in as google_sign_in
-from calendar_cli.state import save_refs, setup_logging
+from calendar_cli.state import RefError, resolve_ref, save_refs, setup_logging
 
 app = typer.Typer(no_args_is_help=True, help="Read and write M365 and Google calendars.")
-err = Console(stderr=True)
+err = Console(stderr=True, soft_wrap=True)
 
 ConfigOption = Annotated[
     Path | None,
@@ -220,3 +225,287 @@ def list_events(
     typer.echo(render_json(listings, start, end) if as_json else render_text(listings))
     if any(listing.error for listing in listings):
         raise typer.Exit(2)
+
+
+def resolve_event(config: Config, ref: str) -> tuple[CalendarEntry, str]:
+    """Turn a short ref (work:3) or full ref (work:<provider id>) into (calendar, event id)."""
+    alias, sep, rest = ref.partition(":")
+    if not sep or not rest:
+        fail(f"event ref {ref!r} must look like work:3 (from `list`) or work:<event id>")
+    try:
+        if rest.isdigit():
+            alias, event_id = resolve_ref(ref)
+        else:
+            event_id = rest
+        return config.calendar(alias), event_id
+    except (RefError, ConfigError) as exc:
+        fail(str(exc))
+
+
+def confirm(lines: list[str], yes: bool) -> None:
+    for line in lines:
+        typer.echo(line)
+    if not yes and not typer.confirm("Proceed?", default=False):
+        fail("cancelled; nothing was changed")
+
+
+def attendee_warning(event: Event, what: str) -> list[str]:
+    if not event.attendees:
+        return []
+    return [f"  note: {len(event.attendees)} attendee(s) will be sent {what}."]
+
+
+def emit_write(as_json: bool, verb: str, entry: JournalEntry, event: Event | None) -> None:
+    if as_json:
+        typer.echo(
+            json.dumps(
+                {"op_id": entry.op_id, "event": event.model_dump(mode="json") if event else None}, indent=2
+            )
+        )
+    else:
+        typer.echo(f"{verb}: {describe(event) if event else entry.title}  (op {entry.op_id})")
+
+
+@app.command("add")
+def add_event(
+    title: Annotated[str, typer.Argument(help="Event title.")],
+    calendar: Annotated[str, typer.Option("--calendar", "-c", help="Calendar alias.")],
+    start: Annotated[
+        str, typer.Option("--start", "-s", help="Start, e.g. '2026-10-24 14:00' or friday with --all-day.")
+    ],
+    end: Annotated[
+        str | None, typer.Option("--end", "-e", help="End (default: start + 1h, or 1 day if --all-day).")
+    ] = None,
+    duration: Annotated[
+        str | None, typer.Option("--duration", "-d", help="Length instead of --end: 30m, 1h30m, 2d.")
+    ] = None,
+    all_day: Annotated[bool, typer.Option("--all-day", help="Whole-day event.")] = False,
+    location: Annotated[str | None, typer.Option("--location", "-l")] = None,
+    description: Annotated[str | None, typer.Option("--description")] = None,
+    category: Annotated[
+        str | None, typer.Option("--category", help="M365 category, or a [category_colors] name on Google.")
+    ] = None,
+    attendee: Annotated[
+        list[str] | None, typer.Option("--attendee", "-a", help="Invitee email; repeat for several.")
+    ] = None,
+    config_path: ConfigOption = None,
+    as_json: JsonOption = False,
+) -> None:
+    """Create an event."""
+    config = get_config(config_path)
+    try:
+        cal = config.calendar(calendar)
+        start_at, end_at = event_times(start, end, duration, all_day, ZoneInfo(config.default_timezone))
+    except (ConfigError, DateParseError) as exc:
+        fail(str(exc))
+    draft = EventDraft(
+        title=title,
+        start=start_at,
+        end=end_at,
+        all_day=all_day,
+        location=location,
+        description=description,
+        categories=[category] if category else [],
+        attendees=attendee or [],
+    )
+    try:
+        event, entry = operations.create(
+            ProviderCache(config).get(cal.account), cal, draft, config.default_timezone
+        )
+    except InputError as exc:
+        fail(str(exc))
+    except ProviderError as exc:
+        fail(str(exc), code=2)
+    emit_write(as_json, "Created", entry, event)
+
+
+@app.command("update")
+def update_event(
+    ref: Annotated[str, typer.Argument(help="Event ref from `list` (work:3) or alias:<event id>.")],
+    title: Annotated[str | None, typer.Option("--title", "-t")] = None,
+    start: Annotated[
+        str | None, typer.Option("--start", "-s", help="New start; keeps the length unless --end/--duration.")
+    ] = None,
+    end: Annotated[str | None, typer.Option("--end", "-e")] = None,
+    duration: Annotated[str | None, typer.Option("--duration", "-d")] = None,
+    location: Annotated[str | None, typer.Option("--location", "-l")] = None,
+    description: Annotated[str | None, typer.Option("--description")] = None,
+    category: Annotated[str | None, typer.Option("--category")] = None,
+    no_category: Annotated[bool, typer.Option("--no-category", help="Remove the category.")] = False,
+    yes: Annotated[bool, typer.Option("--yes", "-y", help="Do not ask for confirmation.")] = False,
+    config_path: ConfigOption = None,
+    as_json: JsonOption = False,
+) -> None:
+    """Change an event's title, time, location, description or category."""
+    config = get_config(config_path)
+    if category and no_category:
+        fail("give --category or --no-category, not both")
+    if end and duration:
+        fail("give --end or --duration, not both")
+    cal, event_id = resolve_event(config, ref)
+    provider = ProviderCache(config).get(cal.account)
+    try:
+        current = provider.get_event(cal.alias, cal.calendar_id, event_id)
+    except InputError as exc:
+        fail(str(exc))
+    except ProviderError as exc:
+        fail(str(exc), code=2)
+
+    fields: dict = {}
+    tz = ZoneInfo(config.default_timezone)
+    try:
+        new_start = parse_date(start, tz)[0] if start else current.start
+        if start or end or duration:
+            if end:
+                new_end = parse_date(end, tz)[0]
+            elif duration:
+                new_end = new_start + parse_duration(duration)
+            else:
+                new_end = new_start + (current.end - current.start)
+            if new_end <= new_start:
+                raise DateParseError("the event must end after it starts")
+            fields.update(start=new_start, end=new_end)
+    except DateParseError as exc:
+        fail(str(exc))
+    if title is not None:
+        fields["title"] = title
+    if location is not None:
+        fields["location"] = location
+    if description is not None:
+        fields["description"] = description
+    if category or no_category:
+        fields["categories"] = [category] if category else []
+    if not fields:
+        fail(
+            "nothing to change; give at least one of --title, --start, --end, --duration, --location, --description, --category, --no-category"
+        )
+
+    changes = EventChanges(**fields)
+    lines = [f"Update {describe(current)}"]
+    lines += [f"  {name}: {getattr(current, name)!s} -> {value!s}" for name, value in fields.items()]
+    confirm(lines + attendee_warning(current, "an update"), yes)
+    try:
+        event, entry = operations.update(provider, cal, current, changes, config.default_timezone)
+    except InputError as exc:
+        fail(str(exc))
+    except ProviderError as exc:
+        fail(str(exc), code=2)
+    emit_write(as_json, "Updated", entry, event)
+
+
+@app.command("delete")
+def delete_event(
+    ref: Annotated[str, typer.Argument(help="Event ref from `list` (work:3) or alias:<event id>.")],
+    series: Annotated[
+        bool, typer.Option("--series", help="Delete the whole recurring series, not just this occurrence.")
+    ] = False,
+    yes: Annotated[bool, typer.Option("--yes", "-y", help="Do not ask for confirmation.")] = False,
+    config_path: ConfigOption = None,
+    as_json: JsonOption = False,
+) -> None:
+    """Delete an event (or, with --series, its whole recurring series)."""
+    config = get_config(config_path)
+    cal, event_id = resolve_event(config, ref)
+    provider = ProviderCache(config).get(cal.account)
+    try:
+        target = provider.get_event(cal.alias, cal.calendar_id, event_id)
+        if series:
+            if not target.series_id:
+                fail(f"{describe(target)} is not part of a recurring series")
+            target = provider.get_event(cal.alias, cal.calendar_id, target.series_id)
+    except InputError as exc:
+        fail(str(exc))
+    except ProviderError as exc:
+        fail(str(exc), code=2)
+
+    if not target.is_organizer:
+        fail(
+            f"you are not the organizer of {describe(target)} ({target.organizer}); "
+            "decline it in Outlook or Google Calendar instead"
+        )
+    lines = [f"Delete {'the whole series of ' if series else ''}{describe(target)}"]
+    if series:
+        lines.append("  note: undo cannot restore a deleted series.")
+    elif target.is_occurrence:
+        lines.append("  note: only this occurrence is deleted; use --series for the whole series.")
+    confirm(lines + attendee_warning(target, "a cancellation"), yes)
+    try:
+        entry = operations.delete(provider, cal, target, series, config.default_timezone)
+    except InputError as exc:
+        fail(str(exc))
+    except ProviderError as exc:
+        fail(str(exc), code=2)
+    emit_write(as_json, "Deleted", entry, target)
+
+
+@app.command("history")
+def show_history(
+    limit: Annotated[int, typer.Option("--limit", "-n", help="How many entries to show.")] = 20,
+    config_path: ConfigOption = None,
+    as_json: JsonOption = False,
+) -> None:
+    """Show the operation journal, newest first."""
+    # The journal does not depend on config; --config is accepted so every command takes it.
+    del config_path
+    entries = journal.read_all()
+    done = journal.undone_ops(entries)
+    recent = list(reversed(entries))[:limit]
+    if as_json:
+        typer.echo(
+            json.dumps(
+                [
+                    {**e.model_dump(mode="json", exclude={"before", "after"}), "undone_by": done.get(e.op_id)}
+                    for e in recent
+                ],
+                indent=2,
+            )
+        )
+        return
+    if not recent:
+        typer.echo("(no operations yet)")
+        return
+    for e in recent:
+        note = f"undone by {done[e.op_id]}" if e.op_id in done else ""
+        if e.action == "undo":
+            note = f"undoes {e.undoes}"
+        if e.status == "failed":
+            note = f"FAILED: {e.error}"
+        typer.echo(
+            f"{e.op_id}  {e.timestamp:%Y-%m-%d %H:%M}  {e.action:<6}  {e.calendar:<10}  {e.title}  {note}".rstrip()
+        )
+
+
+@app.command("undo")
+def undo_operation(
+    op_id: Annotated[
+        str | None, typer.Argument(help="Operation to undo (default: the latest not yet undone).")
+    ] = None,
+    yes: Annotated[bool, typer.Option("--yes", "-y", help="Do not ask for confirmation.")] = False,
+    config_path: ConfigOption = None,
+    as_json: JsonOption = False,
+) -> None:
+    """Undo a create, update or delete from the journal."""
+    config = get_config(config_path)
+    entries = journal.read_all()
+    try:
+        target = journal.find_undo_target(entries, op_id)
+        plan = operations.undo_plan(target)
+        cal = config.calendar(target.calendar)
+    except (LookupError, operations.UndoError, ConfigError) as exc:
+        fail(str(exc))
+    snapshot = target.after_event() or target.before_event()
+    what = "a new invitation" if target.action == "delete" else "an update"
+    confirm([f"Undo {target.action} {target.op_id}: {plan}"] + attendee_warning(snapshot, what), yes)
+    try:
+        event, entry = operations.undo(
+            ProviderCache(config).get(cal.account),
+            cal,
+            target,
+            config.default_timezone,
+            journal.current_event_id(entries, target.event_id),
+        )
+    except InputError as exc:
+        fail(str(exc))
+    except ProviderError as exc:
+        fail(str(exc), code=2)
+    emit_write(as_json, "Undone", entry, event)

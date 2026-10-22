@@ -8,6 +8,8 @@ from dateutil import parser as dateutil_parser
 
 WEEKDAYS = ("monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday")
 OFFSET_PATTERN = re.compile(r"^([+-])(\d+)([dw])$")
+DURATION_PATTERN = re.compile(r"^(?:(\d+)d)?(?:(\d+)h)?(?:(\d+)m)?$")
+DEFAULT_TIMED_LENGTH = timedelta(hours=1)
 DEFAULT_RANGE = timedelta(days=7)
 
 
@@ -69,6 +71,58 @@ def parse_range(
             end = _midnight(end.date() + timedelta(days=1), tz)
     if end <= start:
         raise DateParseError(f"--to ({end:%Y-%m-%d %H:%M}) must be after --from ({start:%Y-%m-%d %H:%M})")
+    return start, end
+
+
+def parse_duration(text: str) -> timedelta:
+    """Parse durations like 30m, 1h, 1h30m, 2d."""
+    match = DURATION_PATTERN.match(text.strip().lower())
+    if not text.strip() or match is None or not any(match.groups()):
+        raise DateParseError(f"cannot understand duration {text!r}; use forms like 30m, 1h, 1h30m, 2d")
+    days, hours, minutes = (int(part or 0) for part in match.groups())
+    return timedelta(days=days, hours=hours, minutes=minutes)
+
+
+def event_times(
+    start_text: str,
+    end_text: str | None,
+    duration_text: str | None,
+    all_day: bool,
+    tz: ZoneInfo,
+    now: datetime | None = None,
+) -> tuple[datetime, datetime]:
+    """Resolve --start/--end/--duration for a new event.
+
+    Timed events need a start with a time and default to 1 hour. All-day events use whole
+    days: a whole-day --end includes that day, and the default is one day.
+    """
+    if end_text and duration_text:
+        raise DateParseError("give --end or --duration, not both")
+    start, has_time = parse_date(start_text, tz, now)
+
+    if all_day:
+        start = _midnight(start.date(), tz)
+        if end_text:
+            end = _midnight(parse_date(end_text, tz, now)[0].date() + timedelta(days=1), tz)
+        elif duration_text:
+            length = parse_duration(duration_text)
+            if length % timedelta(days=1):
+                raise DateParseError("an all-day event's --duration must be whole days, like 1d or 3d")
+            end = start + length
+        else:
+            end = start + timedelta(days=1)
+    else:
+        if not has_time:
+            raise DateParseError(f"--start {start_text!r} has no time; add one (e.g. 14:00) or use --all-day")
+        if end_text:
+            end, end_has_time = parse_date(end_text, tz, now)
+            if not end_has_time:
+                raise DateParseError(f"--end {end_text!r} has no time")
+        else:
+            end = start + (parse_duration(duration_text) if duration_text else DEFAULT_TIMED_LENGTH)
+
+    if end <= start:
+        raise DateParseError("the event must end after it starts")
     return start, end
 
 
