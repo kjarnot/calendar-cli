@@ -111,9 +111,7 @@ class Config(BaseModel):
                 raise ValueError(f"duplicate calendar alias {entry.alias!r}")
             seen.add(entry.alias)
             if entry.account not in self.accounts:
-                raise ValueError(
-                    f"calendar {entry.alias!r} uses unknown account {entry.account!r}"
-                )
+                raise ValueError(f"calendar {entry.alias!r} uses unknown account {entry.account!r}")
         return self
 
     def calendar(self, alias: str) -> CalendarEntry:
@@ -127,9 +125,7 @@ class Config(BaseModel):
     def google_color_id(self, category: str) -> str:
         """Return the Google colorId (as a string, "1"-"11") for a category name."""
         if category not in self.category_colors:
-            raise ConfigError(
-                f"category {category!r} has no Google color; add it under [category_colors]"
-            )
+            raise ConfigError(f"category {category!r} has no Google color; add it under [category_colors]")
         return str(GOOGLE_COLORS.index(self.category_colors[category]) + 1)
 
     def category_for_google_color(self, color_id: str | None) -> str | None:
@@ -158,8 +154,7 @@ def load_config(path: Path | None = None) -> Config:
     mode = stat.S_IMODE(config_path.stat().st_mode)
     if mode & 0o077:
         raise ConfigError(
-            f"config file {config_path} has mode {mode:o}, but it holds secrets; "
-            f"run: chmod 600 {config_path}"
+            f"config file {config_path} has mode {mode:o}, but it holds secrets; run: chmod 600 {config_path}"
         )
 
     try:

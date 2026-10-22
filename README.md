@@ -13,9 +13,19 @@ chmod 600 ~/.config/calendar-cli/config.toml
 uv run calendar-cli config                   # validates the config
 ```
 
+## Usage
+
+```zsh
+calendar-cli calendars                       # calendar IDs each account can see
+calendar-cli list                            # all calendars, today + 7 days
+calendar-cli list -c work --from today --to friday
+calendar-cli list --json
+```
+
 ## Tests
 
 ```zsh
 uv run pytest                 # unit, integration and end-to-end (temp configs only)
-CALENDAR_CLI_E2E=1 uv run pytest tests/e2e   # adds tests against the real test calendars
+CALENDAR_CLI_E2E=1 uv run pytest tests/e2e   # adds live tests against the "calendar-cli e2e" calendars
+                                             # (config: ~/.config/calendar-cli/e2e.toml)
 ```

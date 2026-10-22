@@ -1,5 +1,6 @@
 # ABOUTME: Shared pytest fixtures for calendar-cli tests.
 # ABOUTME: Provides a helper that writes a config.toml with safe (600) permissions.
+import logging
 from pathlib import Path
 
 import pytest
@@ -32,6 +33,18 @@ calendar_id = "primary"
 Exercise = "basil"
 Family = "tangerine"
 """
+
+
+@pytest.fixture(autouse=True)
+def isolated_state(tmp_path: Path, monkeypatch):
+    """Keep every test's refs and app log out of the real state directory."""
+    state = tmp_path / "state"
+    monkeypatch.setenv("CALENDAR_CLI_STATE_DIR", str(state))
+    yield state
+    logger = logging.getLogger("calendar_cli")
+    for handler in list(logger.handlers):
+        logger.removeHandler(handler)
+        handler.close()
 
 
 @pytest.fixture

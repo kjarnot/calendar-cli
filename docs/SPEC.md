@@ -36,6 +36,7 @@ calendar-cli undo [OP_ID] [--yes]           # undo the latest not-yet-undone op,
 ### 2.1 Dates and durations
 
 - `--from` defaults to today 00:00; `--to` defaults to `--from` + 7 days.
+- A whole-day `--to` (for example `friday`) includes that entire day; a `--to` with a time is exact.
 - Accepted date forms: ISO (`2026-10-24`, `2026-10-24 14:00`), `today`, `tomorrow`,
   relative offsets (`+3d`, `-1w`), weekday names (`friday` = the next Friday).
 - Durations: `30m`, `1h`, `1h30m`, `2d`.
@@ -45,7 +46,7 @@ calendar-cli undo [OP_ID] [--yes]           # undo the latest not-yet-undone op,
 
 Provider event IDs are long. `list` assigns a short ref to each event it prints:
 calendar alias prefix + index (for example `work:3`, `personal:7`) and saves the mapping
-in the state directory. `update`, `delete` and `get` accept either a short ref or a full
+in the state directory (`refs.json`). Each `list` replaces the saved refs. `update`, `delete` and `get` accept either a short ref or a full
 `ALIAS:PROVIDER_ID`. A short ref from a stale listing (older than 24 hours) is rejected
 with a message telling the user to run `list` again.
 
