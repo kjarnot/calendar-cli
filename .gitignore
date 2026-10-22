@@ -1,0 +1,16 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+.ruff_cache/
+dist/
+build/
+*.egg-info/
+
+# Secrets and local state never belong in the repo
+config.toml
+*client_secret*.json
+journal.jsonl
+*.log
+.env
