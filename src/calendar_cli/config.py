@@ -46,12 +46,20 @@ class GoogleAccount(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     provider: Literal["google"]
-    client_secrets_file: Path
+    client_id: str
+    client_secret: str = Field(repr=False)
 
-    @field_validator("client_secrets_file")
-    @classmethod
-    def expand_home(cls, value: Path) -> Path:
-        return value.expanduser()
+    def oauth_client_config(self) -> dict:
+        """Build the installed-app client config that google-auth-oauthlib expects."""
+        return {
+            "installed": {
+                "client_id": self.client_id,
+                "client_secret": self.client_secret,
+                "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+                "token_uri": "https://oauth2.googleapis.com/token",
+                "redirect_uris": ["http://localhost"],
+            }
+        }
 
 
 Account = Annotated[M365Account | GoogleAccount, Field(discriminator="provider")]

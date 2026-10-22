@@ -1,6 +1,5 @@
 # ABOUTME: Unit tests for config loading, validation, path resolution and category color mapping.
 # ABOUTME: Uses temporary config files only; never reads the real config.
-from pathlib import Path
 
 import pytest
 
@@ -25,16 +24,19 @@ def test_loads_valid_config(write_config):
     assert config.calendar("work").calendar_id == "primary"
 
 
-def test_google_secrets_path_expands_home(write_config):
-    config = load_config(write_config())
+def test_google_oauth_client_config(write_config):
+    client = load_config(write_config()).accounts["gmail"].oauth_client_config()["installed"]
 
-    assert config.accounts["gmail"].client_secrets_file == Path.home() / "google_client_secret.json"
+    assert client["client_id"] == "google-client-789.apps.googleusercontent.com"
+    assert client["client_secret"] == "google-secret-value"
+    assert client["token_uri"] == "https://oauth2.googleapis.com/token"
 
 
-def test_secret_not_in_repr(write_config):
+def test_secrets_not_in_repr(write_config):
     config = load_config(write_config())
 
     assert "super-secret-value" not in repr(config)
+    assert "google-secret-value" not in repr(config)
 
 
 def test_missing_file_raises(tmp_path):

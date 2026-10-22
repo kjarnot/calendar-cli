@@ -35,7 +35,7 @@ def show_config(config_path: ConfigOption = None) -> None:
     out.print(f"default_timezone: {config.default_timezone}")
     out.print("accounts:")
     for name, account in config.accounts.items():
-        detail = account.user if account.provider == "m365" else str(account.client_secrets_file)
+        detail = account.user if account.provider == "m365" else f"client {account.client_id}"
         out.print(f"  {name}  ({account.provider})  {detail}")
     out.print("calendars:")
     for entry in config.calendars:

@@ -67,7 +67,8 @@ user = "me@example.com"
 
 [accounts.gmail]
 provider = "google"
-client_secrets_file = "~/.config/calendar-cli/google_client_secret.json"
+client_id = "....apps.googleusercontent.com"
+client_secret = "..."
 
 [[calendars]]
 alias = "work"
@@ -242,8 +243,7 @@ Reads (`list`, `calendars`) are logged to `app.log` only, not to the journal.
 
 ## 11. Open items
 
-1. Google: a Google Cloud OAuth client (Desktop app) must be created, and its JSON saved
-   as `client_secrets_file`.
-2. Create test calendars ("calendar-cli e2e") on both accounts for end-to-end tests.
+1. Google: put the Desktop OAuth client's ID and secret in the `gmail` account.
+2. Test calendars "calendar-cli e2e" exist on both accounts; their IDs go in the e2e config.
 3. Confirm the Azure app's application permission is `Calendars.ReadWrite` (setup docs
    say granted).

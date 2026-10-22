@@ -16,7 +16,8 @@ user = "someone@example.com"
 
 [accounts.gmail]
 provider = "google"
-client_secrets_file = "~/google_client_secret.json"
+client_id = "google-client-789.apps.googleusercontent.com"
+client_secret = "google-secret-value"
 
 [[calendars]]
 alias = "work"

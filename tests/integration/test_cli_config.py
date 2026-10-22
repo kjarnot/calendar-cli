@@ -14,7 +14,9 @@ def test_config_command_shows_accounts_and_calendars(write_config):
     assert "office  (m365)  someone@example.com" in result.output
     assert "work  -> office:primary" in result.output
     assert "Exercise = basil" in result.output
+    assert "gmail  (google)  client google-client-789.apps.googleusercontent.com" in result.output
     assert "super-secret-value" not in result.output
+    assert "google-secret-value" not in result.output
 
 
 def test_config_command_reports_error_and_exits_1(write_config):
