@@ -15,6 +15,13 @@ class CalendarInfo(BaseModel):
     can_edit: bool = False
 
 
+class Category(BaseModel):
+    """A category an account accepts, with its color (an M365 preset or a Google color name)."""
+
+    name: str
+    color: str | None = None
+
+
 class Attendee(BaseModel):
     email: str
     name: str | None = None

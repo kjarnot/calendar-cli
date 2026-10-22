@@ -3,7 +3,7 @@
 import itertools
 from datetime import datetime
 
-from calendar_cli.models import Attendee, CalendarInfo, Event, EventChanges, EventDraft
+from calendar_cli.models import Attendee, CalendarInfo, Category, Event, EventChanges, EventDraft
 from calendar_cli.providers.base import InputError, ProviderError
 
 
@@ -42,6 +42,10 @@ class MemoryProvider:
 
     def list_calendars(self) -> list[CalendarInfo]:
         return [CalendarInfo(calendar_id="primary", name="Calendar", is_default=True, can_edit=True)]
+
+    def list_categories(self) -> list[Category]:
+        self._maybe_fail()
+        return [Category(name=name) for name in self.valid_categories]
 
     def list_events(self, calendar_alias, calendar_id, start, end) -> list[Event]:
         return [e for e in self.events.values() if e.start < end and e.end > start]

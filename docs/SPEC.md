@@ -21,6 +21,8 @@ The command is `calendar-cli`.
 ```
 calendar-cli auth <account>                 # one-time Google OAuth login (M365 needs none)
 calendar-cli calendars [--account NAME]     # list calendars each account can see, with IDs
+calendar-cli categories [--account NAME] [--json]  # valid --category names: live from Outlook (M365),
+                                            # from [category_colors] (Google)
 calendar-cli list [--from DATE] [--to DATE] [--calendar ALIAS ...] [--json]
 calendar-cli add TITLE --start DATETIME [--end DATETIME | --duration DUR]
                  --calendar ALIAS [--all-day] [--location TEXT] [--description TEXT]

@@ -3,7 +3,9 @@
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
-from calendar_cli.providers.m365 import M365Provider, _graph_time
+import pytest
+
+from calendar_cli.providers.m365 import M365Provider, _graph_time, _outlook_color
 from tests.fixtures import GRAPH_ALL_DAY, GRAPH_MEETING, M365_ACCOUNT
 
 TZ_NAME = "America/New_York"
@@ -54,3 +56,18 @@ def test_all_day_payload_keeps_its_date_and_blanks_become_none():
     assert event.description is None
     assert event.is_organizer is False
     assert event.is_occurrence is False
+
+
+@pytest.mark.parametrize(
+    ("preset", "name"),
+    [
+        ("preset0", "red"),
+        ("preset18", "dark yellow"),
+        ("preset24", "dark cranberry"),
+        ("none", None),
+        (None, None),
+        ("preset99", "preset99"),
+    ],
+)
+def test_outlook_color_names(preset, name):
+    assert _outlook_color(preset) == name

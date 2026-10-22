@@ -38,3 +38,16 @@ def test_list_e2e_calendar():
     payload = json.loads(result.stdout)
     assert payload["calendars"][0]["alias"] == "e2e-work"
     assert payload["calendars"][0]["error"] is None
+
+
+def test_categories_lists_outlook_and_config_categories():
+    result = run("categories", "--json")
+
+    assert result.returncode == 0, result.stderr
+    payload = json.loads(result.stdout)
+    assert "Exercise" in [c["name"] for c in payload["office"]["categories"]]
+    assert all(
+        c["color"] is None or not c["color"].startswith("preset") for c in payload["office"]["categories"]
+    )
+    if "gmail" in payload:
+        assert {"name": "Exercise", "color": "basil"} in payload["gmail"]["categories"]

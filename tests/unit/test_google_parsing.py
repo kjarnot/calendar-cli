@@ -62,3 +62,10 @@ def test_event_without_organizer_is_ours(provider):
     payload = {key: value for key, value in GOOGLE_ALL_DAY.items() if key != "organizer"}
 
     assert provider._to_event("personal", payload).is_organizer is True
+
+
+def test_categories_come_from_config(provider):
+    assert [(c.name, c.color) for c in provider.list_categories()] == [
+        ("Exercise", "basil"),
+        ("Family", "tangerine"),
+    ]

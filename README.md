@@ -9,6 +9,7 @@ Every write is recorded in a journal and can be undone. The full design is in
 | `config` | Validate the config file and show accounts and calendars (secrets hidden) |
 | `auth ACCOUNT` | One-time browser sign-in for a Google account |
 | `calendars` | List the calendars each account can see, with their IDs |
+| `categories` | List the category names `--category` accepts, with their colors |
 | `list` | List events in a date range, grouped by calendar |
 | `add` | Create an event |
 | `update REF` | Change an event's title, time, location, description or category |
@@ -16,8 +17,36 @@ Every write is recorded in a journal and can be undone. The full design is in
 | `history` | Show the operation journal, newest first |
 | `undo [OP_ID]` | Undo the latest write, or a named one |
 
-Every command accepts `--config PATH`. `list`, `calendars`, `add`, `update`, `delete`,
-`history` and `undo` accept `--json`. Add `-v` before the command for a debug-level app log.
+Every command accepts `--config PATH`. Add `-v` before the command for a debug-level app
+log. `calendar-cli COMMAND --help` shows a command's options.
+
+## JSON output
+
+Put `--json` **after** the command name:
+
+```zsh
+calendar-cli list --json
+calendar-cli list -c work --from today --to friday --json
+calendar-cli categories --json
+calendar-cli add "Dentist" -c personal -s "2026-10-24 14:00" --json
+```
+
+`--json` works with `list`, `calendars`, `categories`, `add`, `update`, `delete`, `history`
+and `undo`. It goes to stdout; errors still go to stderr as text, so the exit code tells you
+whether the JSON is a result (`0`) or partial (`2`, with an `error` field per calendar).
+
+| Command | JSON shape |
+|---|---|
+| `list` | `{"range": {"from", "to"}, "calendars": [{"alias", "provider", "error", "events": [...]}]}` |
+| `calendars`, `categories` | `{"<account>": {"calendars" or "categories": [...]}}`, or `{"<account>": {"error": "..."}}` |
+| `add`, `update`, `delete`, `undo` | `{"op_id": "...", "event": {...}}` |
+| `history` | A list of journal entries, each with `undone_by` |
+
+A quick filter with `jq`:
+
+```zsh
+calendar-cli list -c work --json | jq -r '.calendars[0].events[] | "\(.start) \(.title)"'
+```
 
 ## Setup
 
@@ -149,8 +178,27 @@ calendar-cli add "Planning" -c work -s "2026-10-27 10:00" -e "2026-10-27 11:30" 
 
 ### Categories
 
+See which names are valid:
+
+```zsh
+calendar-cli categories
+```
+
+```
+office (m365, from Outlook)
+  VIP         dark yellow
+  Exercise    orange
+  ...
+gmail (google, from [category_colors] in config)
+  Alex     basil
+  Sam     flamingo
+  Exercise  sage
+```
+
 - **M365:** `--category` must be one of your Outlook categories. An unknown name is
-  rejected before anything is written, and the error lists the valid names.
+  rejected before anything is written, and the error lists the valid names. The list is read
+  live from Outlook, so a category you add in Outlook works right away; nothing to copy into
+  the config.
 - **Google:** `--category` must be listed under `[category_colors]`. It sets the event's
   color, and `list` shows the color's category name.
 

@@ -3,7 +3,7 @@
 from datetime import datetime
 from typing import Protocol
 
-from calendar_cli.models import CalendarInfo, Event, EventChanges, EventDraft
+from calendar_cli.models import CalendarInfo, Category, Event, EventChanges, EventDraft
 
 
 class ProviderError(Exception):
@@ -12,6 +12,8 @@ class ProviderError(Exception):
 
 class CalendarProvider(Protocol):
     def list_calendars(self) -> list[CalendarInfo]: ...
+
+    def list_categories(self) -> list[Category]: ...
 
     def list_events(
         self, calendar_alias: str, calendar_id: str, start: datetime, end: datetime

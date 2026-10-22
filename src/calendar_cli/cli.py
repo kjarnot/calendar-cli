@@ -24,7 +24,19 @@ from calendar_cli.providers.base import InputError
 from calendar_cli.providers.google import sign_in as google_sign_in
 from calendar_cli.state import RefError, resolve_ref, save_refs, setup_logging
 
-app = typer.Typer(no_args_is_help=True, help="Read and write M365 and Google calendars.")
+APP_HELP = """Read and write M365 and Google calendars.
+
+JSON output: add --json after the command, e.g. `calendar-cli list --json`. It works with
+list, calendars, categories, add, update, delete, history and undo.
+
+Run `calendar-cli COMMAND --help` for a command's options.
+"""
+EPILOG = (
+    "Examples: calendar-cli list -c work --from today --to friday | "
+    "calendar-cli list --json | calendar-cli categories --json"
+)
+
+app = typer.Typer(no_args_is_help=True, help=APP_HELP, epilog=EPILOG)
 err = Console(stderr=True, soft_wrap=True)
 
 ConfigOption = Annotated[
@@ -168,6 +180,58 @@ def list_calendars(
                 )
                 typer.echo(f"  {cal['name']}{f'  ({flags})' if flags else ''}")
                 typer.echo(f"    id: {cal['calendar_id']}")
+    if any(isinstance(r, str) for r in results.values()):
+        raise typer.Exit(2)
+
+
+@app.command("categories")
+def list_categories(
+    account: Annotated[str | None, typer.Option("--account", help="Only this account.")] = None,
+    config_path: ConfigOption = None,
+    as_json: JsonOption = False,
+) -> None:
+    """List the category names --category accepts: live from Outlook for M365, from config for Google."""
+    config = get_config(config_path)
+    if account is not None and account not in config.accounts:
+        fail(f"unknown account {account!r}; configured: {', '.join(config.accounts)}")
+    names = [account] if account else list(config.accounts)
+    providers = ProviderCache(config)
+
+    results: dict[str, list[dict] | str] = {}
+    for name in names:
+        try:
+            results[name] = [c.model_dump() for c in providers.get(name).list_categories()]
+        except ProviderError as exc:
+            results[name] = str(exc)
+            logger.warning("categories %s failed: %s", name, exc)
+
+    if as_json:
+        typer.echo(
+            json.dumps(
+                {
+                    name: (
+                        {"error": r}
+                        if isinstance(r, str)
+                        else {"provider": config.accounts[name].provider, "categories": r}
+                    )
+                    for name, r in results.items()
+                },
+                indent=2,
+            )
+        )
+    else:
+        for name, result in results.items():
+            provider = config.accounts[name].provider
+            source = "from Outlook" if provider == "m365" else "from [category_colors] in config"
+            typer.echo(f"{name} ({provider}, {source})")
+            if isinstance(result, str):
+                typer.echo(f"  error: {result}")
+            elif not result:
+                typer.echo("  (none)")
+            else:
+                width = max(len(c["name"]) for c in result)
+                for category in result:
+                    typer.echo(f"  {category['name']:<{width}}  {category['color'] or ''}".rstrip())
     if any(isinstance(r, str) for r in results.values()):
         raise typer.Exit(2)
 

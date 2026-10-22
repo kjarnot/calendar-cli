@@ -15,7 +15,7 @@ from google.oauth2.credentials import Credentials
 
 from calendar_cli import tokens
 from calendar_cli.config import Config, ConfigError, GoogleAccount
-from calendar_cli.models import Attendee, CalendarInfo, Event, EventChanges, EventDraft
+from calendar_cli.models import Attendee, CalendarInfo, Category, Event, EventChanges, EventDraft
 from calendar_cli.providers.base import InputError, ProviderError
 
 CALENDAR_URL = "https://www.googleapis.com/calendar/v3"
@@ -101,6 +101,10 @@ class GoogleProvider:
             )
             for item in items
         ]
+
+    def list_categories(self) -> list[Category]:
+        """Google has no categories; these are the [category_colors] names from config."""
+        return [Category(name=name, color=color) for name, color in self.config.category_colors.items()]
 
     def list_events(
         self, calendar_alias: str, calendar_id: str, start: datetime, end: datetime

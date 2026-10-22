@@ -126,3 +126,18 @@ def test_restore_without_raw_is_refused(provider):
 
     with pytest.raises(InputError, match="no Graph payload"):
         provider.restore_event("work", "primary", snapshot)
+
+
+@respx.mock
+def test_list_categories_maps_colors_and_is_cached(provider):
+    route = respx.get(f"{USER_URL}/outlook/masterCategories").respond(
+        json={
+            "value": [{"displayName": "VIP", "color": "preset18"}, {"displayName": "Plain", "color": "none"}]
+        }
+    )
+
+    first = provider.list_categories()
+    provider._check_categories(["VIP"])
+
+    assert [(c.name, c.color) for c in first] == [("VIP", "dark yellow"), ("Plain", None)]
+    assert route.call_count == 1

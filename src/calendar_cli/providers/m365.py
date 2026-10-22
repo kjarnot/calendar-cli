@@ -10,7 +10,7 @@ import httpx
 import msal
 
 from calendar_cli.config import M365Account
-from calendar_cli.models import Attendee, CalendarInfo, Event, EventChanges, EventDraft
+from calendar_cli.models import Attendee, CalendarInfo, Category, Event, EventChanges, EventDraft
 from calendar_cli.providers.base import InputError, ProviderError
 
 GRAPH_URL = "https://graph.microsoft.com/v1.0"
@@ -18,6 +18,35 @@ GRAPH_SCOPE = "https://graph.microsoft.com/.default"
 EVENT_FIELDS = (
     "id,subject,start,end,isAllDay,location,bodyPreview,categories,attendees,"
     "organizer,isOrganizer,seriesMasterId,type,webLink"
+)
+
+# Graph's categoryColor presets, in order (preset0 = red ... preset24 = dark cranberry).
+OUTLOOK_COLORS = (
+    "red",
+    "orange",
+    "brown",
+    "yellow",
+    "green",
+    "teal",
+    "olive",
+    "blue",
+    "purple",
+    "cranberry",
+    "steel",
+    "dark steel",
+    "gray",
+    "dark gray",
+    "black",
+    "dark red",
+    "dark orange",
+    "dark brown",
+    "dark yellow",
+    "dark green",
+    "dark teal",
+    "dark olive",
+    "dark blue",
+    "dark purple",
+    "dark cranberry",
 )
 
 # Graph event fields copied from a snapshot when recreating a deleted event.
@@ -72,7 +101,7 @@ class M365Provider:
         self.timezone = timezone
         self._token = token_provider or msal_token_provider(account)
         self._http = http or httpx.Client(timeout=30)
-        self._categories: list[str] | None = None
+        self._categories: list[Category] | None = None
 
     def list_calendars(self) -> list[CalendarInfo]:
         items = self._get_all(
@@ -88,6 +117,15 @@ class M365Provider:
             )
             for item in items
         ]
+
+    def list_categories(self) -> list[Category]:
+        """The mailbox's Outlook categories, read live from Graph (cached per provider)."""
+        if self._categories is None:
+            items = self._get_all(f"/users/{self.account.user}/outlook/masterCategories", params=None)
+            self._categories = [
+                Category(name=item["displayName"], color=_outlook_color(item.get("color"))) for item in items
+            ]
+        return self._categories
 
     def list_events(
         self, calendar_alias: str, calendar_id: str, start: datetime, end: datetime
@@ -174,13 +212,11 @@ class M365Provider:
     def _check_categories(self, categories: list[str]) -> None:
         if not categories:
             return
-        if self._categories is None:
-            items = self._get_all(f"/users/{self.account.user}/outlook/masterCategories", params=None)
-            self._categories = [item["displayName"] for item in items]
-        unknown = [c for c in categories if c not in self._categories]
+        valid = [c.name for c in self.list_categories()]
+        unknown = [c for c in categories if c not in valid]
         if unknown:
             raise InputError(
-                f"unknown M365 category {', '.join(map(repr, unknown))}; valid: {', '.join(self._categories)}"
+                f"unknown M365 category {', '.join(map(repr, unknown))}; valid: {', '.join(valid)}"
             )
 
     def _send(
@@ -256,6 +292,16 @@ def _graph_time(value: dict[str, str], fallback_tz: str) -> datetime:
         # Graph can report Windows zone names (e.g. "Eastern Standard Time") when no Prefer header applies.
         tz = ZoneInfo(fallback_tz)
     return datetime.fromisoformat(stamp).replace(tzinfo=tz)
+
+
+def _outlook_color(preset: str | None) -> str | None:
+    """Turn a Graph color preset ("preset18") into Outlook's name for it ("dark yellow")."""
+    if not preset or preset == "none":
+        return None
+    index = preset.removeprefix("preset")
+    if index.isdigit() and int(index) < len(OUTLOOK_COLORS):
+        return OUTLOOK_COLORS[int(index)]
+    return preset
 
 
 def _graph_error(response: httpx.Response) -> str:
