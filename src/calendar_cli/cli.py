@@ -7,6 +7,8 @@ from typing import Annotated, NoReturn
 from zoneinfo import ZoneInfo
 
 import typer
+from google.auth.exceptions import GoogleAuthError
+from oauthlib.oauth2.rfc6749.errors import OAuth2Error
 from rich.console import Console
 from rich.markup import escape
 
@@ -14,6 +16,7 @@ from calendar_cli.config import Config, ConfigError, M365Account, load_config
 from calendar_cli.dates import DateParseError, parse_range
 from calendar_cli.output import CalendarListing, assign_refs, render_json, render_text
 from calendar_cli.providers import CalendarProvider, ProviderError, build_provider
+from calendar_cli.providers.google import sign_in as google_sign_in
 from calendar_cli.state import save_refs, setup_logging
 
 app = typer.Typer(no_args_is_help=True, help="Read and write M365 and Google calendars.")
@@ -87,6 +90,34 @@ def show_config(config_path: ConfigOption = None) -> None:
         typer.echo("category_colors:")
         for category, color in config.category_colors.items():
             typer.echo(f"  {category} = {color}")
+
+
+@app.command("auth")
+def auth(
+    account: Annotated[str, typer.Argument(help="Account name from config, e.g. gmail.")],
+    config_path: ConfigOption = None,
+) -> None:
+    """Sign in to a Google account in the browser and store the token in the Keychain."""
+    config = get_config(config_path)
+    if account not in config.accounts:
+        fail(f"unknown account {account!r}; configured: {', '.join(config.accounts)}")
+    settings = config.accounts[account]
+    if isinstance(settings, M365Account):
+        typer.echo(f"{account} is an M365 account; it uses app credentials from config and needs no sign-in.")
+        return
+
+    typer.echo("Opening your browser to sign in to Google...")
+    try:
+        google_sign_in(account, settings)
+        primary = [c for c in build_provider(config, account).list_calendars() if c.is_default]
+    except ProviderError as exc:
+        fail(str(exc), code=2)
+    except (OAuth2Error, GoogleAuthError, OSError) as exc:
+        logger.warning("auth %s failed: %s", account, exc)
+        fail(f"Google sign-in failed: {exc}", code=2)
+    logger.info("auth %s: signed in", account)
+    who = primary[0].calendar_id if primary else "(no primary calendar found)"
+    typer.echo(f"Signed in to {account} as {who}. Token saved in the macOS Keychain.")
 
 
 @app.command("calendars")

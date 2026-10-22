@@ -120,9 +120,11 @@ class CalendarProvider(Protocol):
 
 ### 4.2 Google Calendar
 
-- Auth: installed-app OAuth (`google-auth-oauthlib`), scope
-  `https://www.googleapis.com/auth/calendar`. Refresh token stored in macOS Keychain via
-  `keyring`.
+- Auth: `calendar-cli auth <account>` runs installed-app OAuth (`google-auth-oauthlib`) in
+  the browser, scope `https://www.googleapis.com/auth/calendar`. The token JSON is stored in
+  the macOS Keychain via `keyring` (service `calendar-cli`, one entry per account) and
+  refreshed automatically; a revoked or expired refresh token tells the user to run `auth` again.
+- Calls go straight to the Calendar v3 REST API over `httpx`, like the M365 provider.
 - Listing uses `singleEvents=true` so recurring events expand into occurrences.
 - Categories: `--category NAME` sets `colorId` from `[category_colors]`. On read, the
   category is reverse-mapped from `colorId` when a mapping exists. An unmapped category
@@ -227,7 +229,7 @@ Reads (`list`, `calendars`) are logged to `app.log` only, not to the journal.
 
 - Python ≥ 3.12, managed with `uv`; package `calendar_cli`, src layout.
 - Typer (CLI), rich (text output), Pydantic v2 (models), `tomllib` (config),
-  `msal` + `httpx` (Graph), `google-api-python-client` + `google-auth-oauthlib` (Google),
+  `msal` + `httpx` (Graph), `google-auth-oauthlib` + `httpx` (Google),
   `keyring`, `python-dateutil`.
 - pytest, `respx` (mock httpx), ruff.
 
