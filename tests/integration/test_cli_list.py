@@ -172,3 +172,47 @@ def test_list_by_date_json_and_error_exit(write_config, providers):
     payload = json.loads(result.output)
     assert [e["title"] for e in payload["days"][0]["events"]] == ["Standup", "Retro"]
     assert payload["errors"] == [{"alias": "personal", "error": "token expired"}]
+
+
+def test_list_tz_overrides_config_timezone(write_config, monkeypatch):
+    seen = {}
+    fake = FakeProvider()
+
+    def build(config, name):
+        seen[name] = config.default_timezone
+        return fake
+
+    monkeypatch.setattr(cli, "build_provider", build)
+
+    result = runner.invoke(
+        cli.app,
+        [
+            "list",
+            "-c",
+            "work",
+            "--from",
+            "2026-10-22",
+            "--tz",
+            "Europe/London",
+            "--config",
+            str(write_config()),
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    assert seen == {"office": "Europe/London"}
+    _, _, start, end = fake.calls[0]
+    assert (start.isoformat(), end.isoformat()) == ("2026-10-22T00:00:00+01:00", "2026-10-29T00:00:00+00:00")
+
+
+def test_list_bad_tz_exits_1(write_config, providers):
+    result = runner.invoke(cli.app, ["list", "--timezone", "Mars/Base", "--config", str(write_config())])
+
+    assert result.exit_code == 1
+    assert "unknown timezone 'Mars/Base'" in result.output
+
+
+def test_help_explains_tz():
+    result = runner.invoke(cli.app, ["--help"], env={"COLUMNS": "120"})
+
+    assert "add --tz NAME after the command" in result.output

@@ -114,6 +114,18 @@ class Config(BaseModel):
                 raise ValueError(f"calendar {entry.alias!r} uses unknown account {entry.account!r}")
         return self
 
+    def with_timezone(self, timezone: str | None) -> "Config":
+        """Return a copy that uses `timezone` instead of default_timezone (None keeps the config's)."""
+        if timezone is None:
+            return self
+        try:
+            Config.check_timezone(timezone)
+        except ValueError as exc:
+            raise ConfigError(
+                f"{exc}; use an IANA name such as America/New_York, Europe/London or UTC"
+            ) from None
+        return self.model_copy(update={"default_timezone": timezone})
+
     def calendar(self, alias: str) -> CalendarEntry:
         for entry in self.calendars:
             if entry.alias == alias:

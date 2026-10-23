@@ -114,3 +114,18 @@ def test_resolve_path_prefers_explicit_then_env(monkeypatch, tmp_path):
 
     assert resolve_config_path(tmp_path / "explicit.toml") == tmp_path / "explicit.toml"
     assert resolve_config_path() == tmp_path / "env.toml"
+
+
+def test_with_timezone_overrides_without_touching_original(write_config):
+    config = load_config(write_config())
+
+    london = config.with_timezone("Europe/London")
+
+    assert london.default_timezone == "Europe/London"
+    assert config.default_timezone == "America/New_York"
+    assert config.with_timezone(None) is config
+
+
+def test_with_timezone_rejects_unknown_names(write_config):
+    with pytest.raises(ConfigError, match="unknown timezone 'Mars/Base'; use an IANA name"):
+        load_config(write_config()).with_timezone("Mars/Base")

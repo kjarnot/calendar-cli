@@ -36,6 +36,9 @@ APP_HELP = """Read and write M365 and Google calendars.
 JSON output: add --json after the command, e.g. `calendar-cli list --json`. It works with
 list, calendars, categories, add, update, delete, history and undo.
 
+Timezone: add --tz NAME after the command, e.g. `calendar-cli list --tz Europe/London`, to
+override default_timezone for that run. It works with list, add, update, delete and undo.
+
 Run `calendar-cli COMMAND --help` for a command's options.
 """
 EPILOG = (
@@ -51,6 +54,14 @@ ConfigOption = Annotated[
     typer.Option("--config", help="Path to config.toml (default: ~/.config/calendar-cli/config.toml)."),
 ]
 JsonOption = Annotated[bool, typer.Option("--json", help="Output JSON instead of text.")]
+TzOption = Annotated[
+    str | None,
+    typer.Option(
+        "--tz",
+        "--timezone",
+        help="Timezone for this run, e.g. Europe/London or UTC; overrides default_timezone in config.",
+    ),
+]
 
 logger = logging.getLogger("calendar_cli")
 
@@ -61,9 +72,9 @@ def fail(message: str, code: int = 1) -> NoReturn:
     raise typer.Exit(code)
 
 
-def get_config(config_path: Path | None) -> Config:
+def get_config(config_path: Path | None, timezone: str | None = None) -> Config:
     try:
-        return load_config(config_path)
+        return load_config(config_path).with_timezone(timezone)
     except ConfigError as exc:
         fail(str(exc))
 
@@ -260,11 +271,12 @@ def list_events(
     by_date: Annotated[
         bool, typer.Option("--by-date", help="Group by day across all calendars instead of by calendar.")
     ] = False,
+    timezone: TzOption = None,
     config_path: ConfigOption = None,
     as_json: JsonOption = False,
 ) -> None:
     """List events in a date range, grouped by calendar (or by day with --by-date)."""
-    config = get_config(config_path)
+    config = get_config(config_path, timezone)
     try:
         start, end = parse_range(from_, to, ZoneInfo(config.default_timezone))
         entries = [config.calendar(alias) for alias in calendar] if calendar else config.calendars
@@ -367,11 +379,12 @@ def add_event(
     attendee: Annotated[
         list[str] | None, typer.Option("--attendee", "-a", help="Invitee email; repeat for several.")
     ] = None,
+    timezone: TzOption = None,
     config_path: ConfigOption = None,
     as_json: JsonOption = False,
 ) -> None:
     """Create an event."""
-    config = get_config(config_path)
+    config = get_config(config_path, timezone)
     try:
         cal = config.calendar(calendar)
         start_at, end_at = event_times(start, end, duration, all_day, ZoneInfo(config.default_timezone))
@@ -412,11 +425,12 @@ def update_event(
     category: Annotated[str | None, typer.Option("--category")] = None,
     no_category: Annotated[bool, typer.Option("--no-category", help="Remove the category.")] = False,
     yes: Annotated[bool, typer.Option("--yes", "-y", help="Do not ask for confirmation.")] = False,
+    timezone: TzOption = None,
     config_path: ConfigOption = None,
     as_json: JsonOption = False,
 ) -> None:
     """Change an event's title, time, location, description or category."""
-    config = get_config(config_path)
+    config = get_config(config_path, timezone)
     if category and no_category:
         fail("give --category or --no-category, not both")
     if end and duration:
@@ -479,11 +493,12 @@ def delete_event(
         bool, typer.Option("--series", help="Delete the whole recurring series, not just this occurrence.")
     ] = False,
     yes: Annotated[bool, typer.Option("--yes", "-y", help="Do not ask for confirmation.")] = False,
+    timezone: TzOption = None,
     config_path: ConfigOption = None,
     as_json: JsonOption = False,
 ) -> None:
     """Delete an event (or, with --series, its whole recurring series)."""
-    config = get_config(config_path)
+    config = get_config(config_path, timezone)
     cal, event_id = resolve_event(config, ref)
     provider = ProviderCache(config).get(cal.account)
     try:
@@ -560,11 +575,12 @@ def undo_operation(
         str | None, typer.Argument(help="Operation to undo (default: the latest not yet undone).")
     ] = None,
     yes: Annotated[bool, typer.Option("--yes", "-y", help="Do not ask for confirmation.")] = False,
+    timezone: TzOption = None,
     config_path: ConfigOption = None,
     as_json: JsonOption = False,
 ) -> None:
     """Undo a create, update or delete from the journal."""
-    config = get_config(config_path)
+    config = get_config(config_path, timezone)
     entries = journal.read_all()
     try:
         target = journal.find_undo_target(entries, op_id)

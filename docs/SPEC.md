@@ -43,6 +43,9 @@ calendar-cli undo [OP_ID] [--yes]           # undo the latest not-yet-undone op,
   relative offsets (`+3d`, `-1w`), weekday names (`friday` = the next Friday).
 - Durations: `30m`, `1h`, `1h30m`, `2d`.
 - Times without a zone use `default_timezone` from config.
+- `--tz NAME` / `--timezone NAME` on `list`, `add`, `update`, `delete` and `undo` overrides
+  `default_timezone` for that run: input parsing, relative dates, display, and the timezone
+  the providers request from the APIs. An unknown name exits 1.
 - `add`: a timed event defaults to 1 hour; an all-day event to 1 day. A whole-day `--end`
   on an all-day event includes that day.
 - `update --start` without `--end`/`--duration` keeps the event's length.

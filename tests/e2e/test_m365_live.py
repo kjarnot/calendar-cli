@@ -60,3 +60,15 @@ def test_list_by_date_json():
     payload = json.loads(result.stdout)
     assert set(payload) == {"range", "days", "errors"}
     assert payload["errors"] == []
+
+
+def test_list_tz_override_sets_the_live_range():
+    result = run(
+        "list", "-c", "e2e-work", "--from", "2026-12-01", "--to", "2026-12-01", "--tz", "UTC", "--json"
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert json.loads(result.stdout)["range"] == {
+        "from": "2026-12-01T00:00:00+00:00",
+        "to": "2026-12-02T00:00:00+00:00",
+    }

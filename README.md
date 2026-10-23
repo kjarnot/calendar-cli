@@ -17,7 +17,8 @@ Every write is recorded in a journal and can be undone. The full design is in
 | `history` | Show the operation journal, newest first |
 | `undo [OP_ID]` | Undo the latest write, or a named one |
 
-Every command accepts `--config PATH`. Add `-v` before the command for a debug-level app
+Every command accepts `--config PATH`. `list`, `add`, `update`, `delete` and `undo` accept
+`--tz NAME` (see [Timezones](#timezones)). Add `-v` before the command for a debug-level app
 log. `calendar-cli COMMAND --help` shows a command's options.
 
 ## JSON output
@@ -172,7 +173,25 @@ Fri 2026-10-23
 
 - `--from` defaults to today. `--to` defaults to 7 days after `--from`.
 - A whole-day `--to` includes that day: `--from today --to friday` covers through Friday.
-- Times without a zone use `default_timezone`.
+- Times without a zone use `default_timezone`, or `--tz` if you give it.
+
+### Timezones
+
+`--tz NAME` (or `--timezone NAME`) overrides `default_timezone` for one run. Put it after the
+command name. NAME is an IANA zone such as `America/New_York`, `Europe/London`, `Asia/Tokyo`
+or `UTC`.
+
+```zsh
+calendar-cli list -c work --from 2026-10-23 --to 2026-10-23 --tz Europe/London
+calendar-cli add "Call with London" -c work -s "2026-12-01 14:00" --tz Europe/London
+```
+
+It changes three things for that run:
+- **Input:** times you type (`-s "2026-12-01 14:00"`) are read in that zone.
+- **Output:** event times are shown in that zone. 09:00 in New York shows as `14:00` with
+  `--tz Europe/London`.
+- **Relative dates:** `today`, `tomorrow` and weekdays are worked out in that zone, so late
+  in the evening in New York, `--tz UTC` may already treat `tomorrow` as the day after.
 
 ## Writing events
 
@@ -293,6 +312,7 @@ Set `$CALENDAR_CLI_STATE_DIR` to keep state somewhere else.
 | `unknown M365 category` | Use a name from the list in the error, or create it in Outlook |
 | `category ... has no Google color` | Add it under `[category_colors]` |
 | `the saved listing is older than 24 hours` | Run `calendar-cli list` again |
+| `unknown timezone '...'` | Use an IANA name, e.g. `America/New_York`, `Europe/London`, `UTC` |
 
 ## Development
 

@@ -224,3 +224,14 @@ def test_undo_named_op(setup):
 
     assert result.exit_code == 0, result.output
     assert [e.title for e in provider.events.values()] == ["B"]
+
+
+def test_add_with_tz_reads_times_in_that_zone(setup):
+    provider, run = setup
+
+    result = run("add", "Call", "-c", "work", "-s", "2026-12-01 14:00", "--tz", "Europe/London", "--json")
+
+    assert result.exit_code == 0, result.output
+    [event] = provider.events.values()
+    assert event.start.isoformat() == "2026-12-01T14:00:00+00:00"
+    assert event.start.astimezone(TZ).hour == 9  # 14:00 London is 09:00 New York in December
