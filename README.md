@@ -351,6 +351,29 @@ Set `$CALENDAR_CLI_STATE_DIR` to keep state somewhere else.
 | `unknown profile '...'` | Add `profile = "..."` to the `[[calendars]]` entries, or use a name from the error |
 | `unknown timezone '...'` | Use an IANA name, e.g. `America/New_York`, `Europe/London`, `UTC` |
 
+## Claude skill: calendar-planning
+
+`skills/calendar-planning/` is a Claude Code skill that uses `calendar-cli` for day and
+week overviews, finding free time, time-blocking a to-do list (typed in or from Todoist),
+and work/personal conflict checks. It proposes calendar blocks and creates only the ones
+you approve. It is symlinked into `~/.claude-personal/skills/` and `~/.claude/skills/`, so
+both setups always use the version in this repo.
+
+`skills/calendar-planning/scripts/plan.py` does the planning math on `list --json` output
+(standard library only):
+
+```zsh
+calendar-cli list --from 2026-10-26 --to 2026-10-30 --json > /tmp/week.json
+python3 skills/calendar-planning/scripts/plan.py load /tmp/week.json
+python3 skills/calendar-planning/scripts/plan.py free /tmp/week.json --day-start 08:30 --day-end 17:30 --min 60 --weekdays
+python3 skills/calendar-planning/scripts/plan.py conflicts /tmp/week.json
+```
+
+Busy rules: all-day events, "Canceled:" events, colleagues' PTO/appointment notices, and
+family members' events (titles starting Alex, Sam or Jordan; change with
+`--ignore-title`) don't count as busy time. Its tests live in `tests/skill/` and
+`tests/e2e/test_planning_skill_live.py`.
+
 ## Development
 
 ```zsh
