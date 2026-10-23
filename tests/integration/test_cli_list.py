@@ -146,3 +146,29 @@ def test_calendars_unknown_account_exits_1(write_config, providers):
 
     assert result.exit_code == 1
     assert "unknown account 'icloud'" in result.output
+
+
+def test_list_by_date_text_keeps_refs(write_config, providers):
+    result = runner.invoke(
+        cli.app, ["list", "--by-date", "--config", str(write_config()), "--from", "2026-10-22"]
+    )
+
+    assert result.exit_code == 0, result.output
+    assert result.output.splitlines() == [
+        "Thu 2026-10-22",
+        "  work:1       10:00–11:00  work      Standup",
+        "  work:2       14:00–15:00  work      Retro",
+        "  personal:1   16:00–17:00  personal  Dentist",
+    ]
+    assert resolve_ref("personal:1") == ("personal", "p1")
+
+
+def test_list_by_date_json_and_error_exit(write_config, providers):
+    providers["gmail"].error = "token expired"
+
+    result = runner.invoke(cli.app, ["list", "--by-date", "--json", "--config", str(write_config())])
+
+    assert result.exit_code == 2
+    payload = json.loads(result.output)
+    assert [e["title"] for e in payload["days"][0]["events"]] == ["Standup", "Retro"]
+    assert payload["errors"] == [{"alias": "personal", "error": "token expired"}]

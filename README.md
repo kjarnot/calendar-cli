@@ -10,7 +10,7 @@ Every write is recorded in a journal and can be undone. The full design is in
 | `auth ACCOUNT` | One-time browser sign-in for a Google account |
 | `calendars` | List the calendars each account can see, with their IDs |
 | `categories` | List the category names `--category` accepts, with their colors |
-| `list` | List events in a date range, grouped by calendar |
+| `list` | List events in a date range, grouped by calendar (or by day with `--by-date`) |
 | `add` | Create an event |
 | `update REF` | Change an event's title, time, location, description or category |
 | `delete REF` | Delete an event, or a whole recurring series |
@@ -38,6 +38,7 @@ whether the JSON is a result (`0`) or partial (`2`, with an `error` field per ca
 | Command | JSON shape |
 |---|---|
 | `list` | `{"range": {"from", "to"}, "calendars": [{"alias", "provider", "error", "events": [...]}]}` |
+| `list --by-date` | `{"range": {"from", "to"}, "days": [{"date", "events": [...]}], "errors": [{"alias", "error"}]}` |
 | `calendars`, `categories` | `{"<account>": {"calendars" or "categories": [...]}}`, or `{"<account>": {"error": "..."}}` |
 | `add`, `update`, `delete`, `undo` | `{"op_id": "...", "event": {...}}` |
 | `history` | A list of journal entries, each with `undone_by` |
@@ -126,6 +127,7 @@ calendar-cli list                                   # all calendars, today + 7 d
 calendar-cli list -c work                           # one calendar
 calendar-cli list -c work -c personal --from tomorrow --to friday
 calendar-cli list --from 2026-11-01 --to 2026-11-30 --json
+calendar-cli list --by-date                         # one timeline, all calendars mixed by day
 ```
 
 Output is grouped by calendar, then by day. Each event gets a short **ref** such as
@@ -140,6 +142,19 @@ work (M365 · me@example.com)
     work:3       thru Mon 10-26 PTO
 ```
 
+With `--by-date`, events from every calendar are merged under each day, in time order, with
+the calendar shown on each line. Refs are the same as in the default view:
+
+```
+Fri 2026-10-23
+  work:1       thru Mon 10-26 work      PTO
+  work:2       09:00–09:30    work      Dan/Pat 1:1  [Staff]
+  family:1   09:00–18:00    family  Alex - Work 9am-6pm  [Alex]
+  family:3   14:15–15:15    family  Sam - eye appointment  [Sam]
+```
+
+- In `--by-date`, an event that began before `--from` (such as a multi-day trip) is listed
+  under the first day of the range. Calendars that failed are listed under `errors:` at the end.
 - Refs come from the most recent `list` and expire after 24 hours. Each `list` replaces them.
 - You can always use a full ref instead: `ALIAS:<event id>`, taking the ID from `list --json`.
 - If one calendar fails (for example, an expired sign-in), the others still print. The

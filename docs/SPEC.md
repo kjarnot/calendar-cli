@@ -23,7 +23,7 @@ calendar-cli auth <account>                 # one-time Google OAuth login (M365 
 calendar-cli calendars [--account NAME]     # list calendars each account can see, with IDs
 calendar-cli categories [--account NAME] [--json]  # valid --category names: live from Outlook (M365),
                                             # from [category_colors] (Google)
-calendar-cli list [--from DATE] [--to DATE] [--calendar ALIAS ...] [--json]
+calendar-cli list [--from DATE] [--to DATE] [--calendar ALIAS ...] [--by-date] [--json]
 calendar-cli add TITLE --start DATETIME [--end DATETIME | --duration DUR]
                  --calendar ALIAS [--all-day] [--location TEXT] [--description TEXT]
                  [--category NAME] [--attendee EMAIL ...] [--json]
@@ -164,6 +164,13 @@ personal (Google · primary)
   Sat 2026-10-24
     personal:1  all day  Soccer tournament
 ```
+
+### 6.1a Text by date (`--by-date`)
+
+One section per day across all calendars, events in time order (ties broken by config
+order), each line showing ref, time, calendar alias and title. Refs are unchanged from the
+default view. An event that began before `--from` is listed under the range's first day.
+Failed calendars are listed under `errors:` at the end.
 
 ### 6.2 JSON (`--json`)
 

@@ -51,3 +51,12 @@ def test_categories_lists_outlook_and_config_categories():
     )
     if "gmail" in payload:
         assert {"name": "Exercise", "color": "basil"} in payload["gmail"]["categories"]
+
+
+def test_list_by_date_json():
+    result = run("list", "--by-date", "--from", "today", "--to", "+7d", "--json")
+
+    assert result.returncode == 0, result.stderr
+    payload = json.loads(result.stdout)
+    assert set(payload) == {"range", "days", "errors"}
+    assert payload["errors"] == []

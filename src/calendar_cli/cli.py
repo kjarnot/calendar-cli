@@ -18,7 +18,14 @@ from calendar_cli.dates import DateParseError, event_times, parse_date, parse_du
 from calendar_cli.journal import JournalEntry
 from calendar_cli.models import Event, EventChanges, EventDraft
 from calendar_cli.operations import describe
-from calendar_cli.output import CalendarListing, assign_refs, render_json, render_text
+from calendar_cli.output import (
+    CalendarListing,
+    assign_refs,
+    render_json,
+    render_json_by_date,
+    render_text,
+    render_text_by_date,
+)
 from calendar_cli.providers import CalendarProvider, ProviderError, build_provider
 from calendar_cli.providers.base import InputError
 from calendar_cli.providers.google import sign_in as google_sign_in
@@ -250,10 +257,13 @@ def list_events(
         list[str] | None,
         typer.Option("--calendar", "-c", help="Calendar alias; repeat for several (default all)."),
     ] = None,
+    by_date: Annotated[
+        bool, typer.Option("--by-date", help="Group by day across all calendars instead of by calendar.")
+    ] = False,
     config_path: ConfigOption = None,
     as_json: JsonOption = False,
 ) -> None:
-    """List events in a date range, grouped by calendar."""
+    """List events in a date range, grouped by calendar (or by day with --by-date)."""
     config = get_config(config_path)
     try:
         start, end = parse_range(from_, to, ZoneInfo(config.default_timezone))
@@ -286,7 +296,12 @@ def list_events(
         listings.append(listing)
 
     save_refs(assign_refs(listings))
-    typer.echo(render_json(listings, start, end) if as_json else render_text(listings))
+    if by_date:
+        typer.echo(
+            render_json_by_date(listings, start, end) if as_json else render_text_by_date(listings, start)
+        )
+    else:
+        typer.echo(render_json(listings, start, end) if as_json else render_text(listings))
     if any(listing.error for listing in listings):
         raise typer.Exit(2)
 

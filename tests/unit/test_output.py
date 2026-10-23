@@ -5,7 +5,14 @@ from datetime import datetime
 from zoneinfo import ZoneInfo
 
 from calendar_cli.models import Event
-from calendar_cli.output import CalendarListing, assign_refs, render_json, render_text
+from calendar_cli.output import (
+    CalendarListing,
+    assign_refs,
+    render_json,
+    render_json_by_date,
+    render_text,
+    render_text_by_date,
+)
 
 TZ = ZoneInfo("America/New_York")
 
@@ -101,3 +108,64 @@ def test_long_alias_widens_ref_column():
     )
 
     assert "    e2e-personal:1 12:00–13:00  Lunch" in render_text([listing])
+
+
+def test_render_text_by_date_mixes_calendars_in_time_order():
+    work = CalendarListing(
+        alias="work",
+        provider="m365",
+        label="M365",
+        events=[
+            event("work", "w1", "Standup", at(23, 10), at(23, 10, 30)),
+            event("work", "w2", "PTO", at(21, 0), at(27, 0), all_day=True),
+        ],
+    )
+    personal = CalendarListing(
+        alias="personal",
+        provider="google",
+        label="G",
+        events=[
+            event("personal", "p1", "Dentist", at(23, 10), at(23, 10, 30), categories=["Family"]),
+            event("personal", "p2", "Dinner", at(22, 18), at(22, 19)),
+        ],
+    )
+    listings = [work, personal]
+    assign_refs(listings)
+
+    assert (
+        render_text_by_date(listings, at(22, 0)).splitlines()
+        == [
+            "Thu 2026-10-22",
+            "  work:1       thru Mon 10-26 work      PTO",  # began Oct 21, before the range: listed on its first day
+            "  personal:1   18:00–19:00    personal  Dinner",
+            "Fri 2026-10-23",
+            "  work:2       10:00–10:30    work      Standup",  # same time as Dentist: config order breaks the tie
+            "  personal:2   10:00–10:30    personal  Dentist  [Family]",
+        ]
+    )
+
+
+def test_render_text_by_date_lists_errors_and_empty():
+    broken = CalendarListing(alias="other", provider="google", label="Google · x", error="token expired")
+
+    assert render_text_by_date([broken], at(22, 0)).splitlines() == [
+        "(no events)",
+        "errors:",
+        "  other (Google · x): token expired",
+    ]
+
+
+def test_render_json_by_date():
+    listings = sample()
+    assign_refs(listings)
+
+    payload = json.loads(render_json_by_date(listings, at(22, 0), at(29, 0)))
+
+    assert [d["date"] for d in payload["days"]] == ["2026-10-22", "2026-10-23"]
+    first_day = payload["days"][0]["events"]
+    assert [(e["ref"], e["title"], e["calendar_alias"]) for e in first_day] == [
+        ("work:1", "PTO", "work"),
+        ("work:2", "Workout", "work"),
+    ]
+    assert "raw" not in first_day[0]
+    assert payload["errors"] == [{"alias": "other", "error": "token expired"}]
