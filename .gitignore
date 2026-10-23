@@ -14,3 +14,6 @@ config.toml
 journal.jsonl
 *.log
 .env
+
+# Per-user skill details (names, real calendar aliases)
+skills/*/local.md

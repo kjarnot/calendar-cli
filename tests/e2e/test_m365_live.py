@@ -4,6 +4,7 @@ import json
 import os
 import shutil
 import subprocess
+import tomllib
 from pathlib import Path
 
 import pytest
@@ -17,6 +18,12 @@ pytestmark = pytest.mark.skipif(
 )
 
 
+def m365_account() -> str:
+    """The e2e config's M365 account name, so the test works whatever the account is called."""
+    accounts = tomllib.loads(E2E_CONFIG.read_text())["accounts"]
+    return next(name for name, account in accounts.items() if account["provider"] == "m365")
+
+
 def run(*args: str) -> subprocess.CompletedProcess:
     return subprocess.run(
         [BINARY, *args, "--config", str(E2E_CONFIG)], check=False, capture_output=True, text=True, timeout=60
@@ -24,10 +31,10 @@ def run(*args: str) -> subprocess.CompletedProcess:
 
 
 def test_calendars_lists_the_e2e_calendar():
-    result = run("calendars", "--account", "office", "--json")
+    result = run("calendars", "--account", m365_account(), "--json")
 
     assert result.returncode == 0, result.stderr
-    names = [c["name"] for c in json.loads(result.stdout)["office"]["calendars"]]
+    names = [c["name"] for c in json.loads(result.stdout)[m365_account()]["calendars"]]
     assert "calendar-cli e2e" in names
 
 
@@ -45,9 +52,10 @@ def test_categories_lists_outlook_and_config_categories():
 
     assert result.returncode == 0, result.stderr
     payload = json.loads(result.stdout)
-    assert "Exercise" in [c["name"] for c in payload["office"]["categories"]]
+    assert "Exercise" in [c["name"] for c in payload[m365_account()]["categories"]]
     assert all(
-        c["color"] is None or not c["color"].startswith("preset") for c in payload["office"]["categories"]
+        c["color"] is None or not c["color"].startswith("preset")
+        for c in payload[m365_account()]["categories"]
     )
     if "gmail" in payload:
         assert {"name": "Exercise", "color": "basil"} in payload["gmail"]["categories"]

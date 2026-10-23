@@ -15,17 +15,22 @@ blocks are the **weekly-training-plan** skill's job.
 
 ## Calendars
 
+**First read `local.md` next to this file, if it exists.** It holds this user's real
+details, kept out of the repo: how to address him, his actual calendar aliases (they
+replace the generic ones below), family members' names, and his title conventions.
+Without it, run `calendar-cli config` to see the configured calendars.
+
 | Alias | What it is | Profile |
 |---|---|---|
-| `work` | M365 calendar | `work` |
-| `personal` | the user's own Google calendar ("K") | `personal` |
-| `family` | Shared family calendar (Family) | `personal` |
+| `work` | Work M365 calendar | `work` |
+| `personal` | The user's own Google calendar | `personal` |
+| `family` | Shared family Google calendar | `personal` |
 
 Which calendar to write to when he doesn't say:
 - Work meetings, work tasks, focus time → `work`.
 - His own appointments and errands (dentist, haircut, car service) → `personal`.
-- Things the family shares or other family members do (Alex, Sam, Jordan, trips,
-  school events) → `family`.
+- Things the family shares or other family members do (trips, school events, family
+  members' appointments) → `family`.
 - Genuinely unclear → ask.
 
 `calendar-cli COMMAND --help` and `~/Development/Personal/calendar-cli/README.md` cover
@@ -69,15 +74,15 @@ calendar-cli list -c family --from 2026-11-01 --to 2026-11-30 --json
 calendar-cli add "Dentist" -c personal -s "2026-10-30 14:00" -d 45m --json
 calendar-cli add "Budget review prep" -c work -s "2026-10-27 13:30" -e "2026-10-27 15:00" \
     --category "Focus time" --json
-calendar-cli add "Thanksgiving in Maine" -c family -s 2026-11-26 --all-day -d 3d --json
+calendar-cli add "Family trip" -c family -s 2026-11-26 --all-day -d 3d --json
 ```
 
 - the user asking for it is approval for a plain add: run it, then confirm what was created.
   If you had to guess the calendar, the date or the length (default 1 h), say so in the
   confirmation so he can correct it.
 - Optional: `-l LOCATION`, `--description TEXT`, `--category NAME`.
-- Categories: M365 takes his Outlook categories, Google takes `Alex`, `Sam`,
-  `Exercise` (event colors). Run `calendar-cli categories --json` if he names one you
+- Categories: M365 takes his Outlook categories, Google takes the names under
+  `[category_colors]` in the config (event colors). Run `calendar-cli categories --json` if he names one you
   haven't seen. An unknown category is rejected before anything is written.
 - **Never add `--attendee` without asking first.** It sends real invitations. If he
   wants to invite someone, show the exact emails and get a yes.

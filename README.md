@@ -186,8 +186,8 @@ the calendar shown on each line. Refs are the same as in the default view:
 Fri 2026-10-23
   work:1       thru Mon 10-26 work      PTO
   work:2       09:00–09:30    work      Dan/Pat 1:1  [Staff]
-  family:1   09:00–18:00    family  Alex - Work 9am-6pm  [Alex]
-  family:3   14:15–15:15    family  Sam - eye appointment  [Sam]
+  family:1     09:00–18:00    family    Alex - Work 9am-6pm  [Alex]
+  family:3     14:15–15:15    family    Sam - eye appointment  [Sam]
 ```
 
 - In `--by-date`, an event that began before `--from` (such as a multi-day trip) is listed
@@ -260,8 +260,8 @@ office (m365, from Outlook)
   Exercise    orange
   ...
 gmail (google, from [category_colors] in config)
-  Alex     basil
-  Sam     flamingo
+  Alex      basil
+  Sam       flamingo
   Exercise  sage
 ```
 
@@ -360,6 +360,11 @@ and work/personal conflict checks. It proposes calendar blocks and creates only 
 you approve. It is symlinked into `~/.claude-personal/skills/` and `~/.claude/skills/`, so
 both setups always use the version in this repo.
 
+Both skills are written for a generic user. Personal details (how to address you, your real
+calendar aliases, family members' names for `--ignore-title`, your title conventions) go in
+a `local.md` next to each `SKILL.md`. Git ignores `skills/*/local.md`, so it never leaves
+your machine.
+
 `skills/calendar-planning/scripts/plan.py` does the planning math on `list --json` output
 (standard library only):
 
@@ -371,8 +376,9 @@ python3 skills/calendar-planning/scripts/plan.py conflicts /tmp/week.json
 ```
 
 Busy rules: all-day events, "Canceled:" events, colleagues' PTO/appointment notices, and
-family members' events (titles starting Alex, Sam or Jordan; change with
-`--ignore-title`) don't count as busy time. Its tests live in `tests/skill/` and
+titles matching `--ignore-title` (a regex, such as family members' names:
+`--ignore-title '^(alex|sam)\b'`) don't count as busy time. Nothing is ignored by title
+unless you pass it. Its tests live in `tests/skill/` and
 `tests/e2e/test_planning_skill_live.py`.
 
 ## Claude skill: calendar-cli

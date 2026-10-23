@@ -12,8 +12,9 @@ Busy rules (shared with the weekly-training-plan skill):
   * "Canceled:" events don't block time;
   * a colleague's availability notice sent as an invite (their PTO / vacation /
     appointment / OOO, where the user is not the organizer) doesn't block time;
-  * events titled after other family members (default: Alex, Sam, Jordan) are
-    their plans on the shared family calendar, not the user's busy time.
+  * events whose titles match --ignore-title (for example other family members'
+    names on a shared family calendar) are their plans, not the user's busy time.
+    No titles are ignored unless --ignore-title is given.
 """
 
 import argparse
@@ -24,7 +25,6 @@ from dataclasses import dataclass
 from datetime import date, datetime, time, timedelta
 from zoneinfo import ZoneInfo
 
-DEFAULT_IGNORE = r"^(alex|sam|jordan)\b"
 CANCELED = re.compile(r"^cancel+ed:", re.IGNORECASE)
 COLLEAGUE_NOTICE = re.compile(r"appointment|vacation|\bpto\b|\booo\b|out of (the )?office", re.IGNORECASE)
 
@@ -251,7 +251,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("command", choices=["free", "conflicts", "load"])
     parser.add_argument("input", help="calendar-cli list --json output file, or - for stdin")
     parser.add_argument("--tz", default="America/New_York")
-    parser.add_argument("--ignore-title", default=DEFAULT_IGNORE, help="regex; matching titles are not busy")
+    parser.add_argument("--ignore-title", default="", help="regex; matching titles are not busy")
     parser.add_argument("--day-start", type=parse_hhmm, default=time(8, 0))
     parser.add_argument("--day-end", type=parse_hhmm, default=time(18, 0))
     parser.add_argument("--min", type=int, default=30, help="shortest free window to report, in minutes")

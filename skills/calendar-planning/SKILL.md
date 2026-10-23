@@ -21,11 +21,16 @@ calendar until he approves it.
 
 Calendars (aliases from `~/.config/calendar-cli/config.toml`):
 
+**First read `local.md` next to this file, if it exists.** It holds this user's real
+details, kept out of the repo: how to address him, his actual calendar aliases (they
+replace the generic ones below), family members' names, and his title conventions.
+Without it, run `calendar-cli config` to see the configured calendars.
+
 | Alias | What it is | Profile |
 |---|---|---|
-| `work` | M365 calendar | `work` |
-| `personal` | the user's own Google calendar ("K") | `personal` |
-| `family` | Shared family calendar (Family) | `personal` |
+| `work` | Work M365 calendar | `work` |
+| `personal` | The user's own Google calendar | `personal` |
+| `family` | Shared family Google calendar | `personal` |
 
 ## Step 1 — Pull the events
 
@@ -37,9 +42,10 @@ file, then run the script on it (`plan.py` sits in this skill's `scripts/` folde
 EV=$(mktemp -t calendar-planning).json
 calendar-cli list --from 2026-10-26 --to 2026-10-30 --json > $EV
 P=~/.claude-personal/skills/calendar-planning/scripts/plan.py   # work setup: ~/.claude/skills/...
-python3 $P load $EV                      # busy hours per day, plus what was ignored and why
-python3 $P free $EV --day-start 08:30 --day-end 17:30 --min 60 --weekdays
-python3 $P conflicts $EV
+FAM='^(alex|sam)\b'                       # family names from local.md; '' if none
+python3 $P load $EV --ignore-title "$FAM"   # busy hours per day, plus what was ignored and why
+python3 $P free $EV --ignore-title "$FAM" --day-start 08:30 --day-end 17:30 --min 60 --weekdays
+python3 $P conflicts $EV --ignore-title "$FAM"
 ```
 
 - Dates: ISO, `today`, `tomorrow`, weekday names, `+3d`. A weekday can't take a time.
@@ -61,10 +67,12 @@ output rather than re-deciding per event:
   treat the whole day as unavailable and say so.
 - **Colleagues' notices don't block time** — someone else's PTO, vacation or appointment
   that reached him as an invite.
-- **Family members' events on the family calendar aren't his busy time.** Titles starting
-  with Alex, Sam or Jordan are their plans. They still matter as context (e.g. Alex
-  working late may mean the user handles dinner), so mention relevant ones. Events titled
-  "K - ..." or with no name are treated as his.
+- **Family members' events on the family calendar aren't his busy time.** Pass
+  `--ignore-title` with a regex of the family names from `local.md` (for example
+  `'^(alex|sam)\b'`); matching titles are their plans. Without it, every event counts as
+  busy. Family events still matter as context (someone working late may mean the user
+  handles dinner), so mention relevant ones. Titles carrying his own marker (see
+  `local.md`) or no name are treated as his.
 - `load` lists everything it ignored under `context:` so you can mention it.
 
 ## Step 2 — Do what he asked
@@ -76,7 +84,7 @@ Lead with the shape of the period, then the details that need attention:
 1. One line per day: how full it is, first/last commitment, best open window.
 2. Conflicts and double-bookings (from `conflicts`).
 3. Heavy days: more than ~5 h booked, or 2 h+ without a break. Suggest protecting a gap.
-4. Family/personal context that changes the day (appointments, Alex's late shifts,
+4. Family/personal context that changes the day (appointments, a family member's late shift,
    trips, holidays).
 5. Optionally, one or two suggestions ("Tuesday afternoon is your only long free block —
    want me to hold it for focus time?").

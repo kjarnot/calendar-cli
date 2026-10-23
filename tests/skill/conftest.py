@@ -7,6 +7,8 @@ from pathlib import Path
 import pytest
 
 PLAN_PATH = Path(__file__).resolve().parents[2] / "skills" / "calendar-planning" / "scripts" / "plan.py"
+# The --ignore-title pattern for the sample family members in week_payload.
+FAMILY = r"^(alex|sam)\b"
 
 
 @pytest.fixture(scope="session")

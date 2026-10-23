@@ -4,14 +4,14 @@ import re
 from datetime import date, time
 from zoneinfo import ZoneInfo
 
-from tests.skill.conftest import ev
+from tests.skill.conftest import FAMILY, ev
 
 TZ = ZoneInfo("America/New_York")
 
 
 def test_busy_rules(plan, week_payload):
     events, _, _ = plan.load_events(week_payload)
-    ignore = re.compile(plan.DEFAULT_IGNORE, re.IGNORECASE)
+    ignore = re.compile(FAMILY, re.IGNORECASE)
     reasons = {e.title: plan.not_busy_reason(e, ignore) for e in events}
 
     assert reasons == {
@@ -33,12 +33,12 @@ def test_own_appointment_is_busy(plan):
         }
     )
 
-    assert plan.not_busy_reason(events[0], re.compile(plan.DEFAULT_IGNORE, re.IGNORECASE)) is None
+    assert plan.not_busy_reason(events[0], re.compile(FAMILY, re.IGNORECASE)) is None
 
 
 def test_free_windows_merge_overlaps_and_respect_min(plan, week_payload):
     events, _, _ = plan.load_events(week_payload)
-    busy = plan.busy_events(events, re.compile(plan.DEFAULT_IGNORE, re.IGNORECASE))
+    busy = plan.busy_events(events, re.compile(FAMILY, re.IGNORECASE))
 
     windows = plan.free_windows(busy, date(2026, 10, 27), time(8, 30), time(17, 30), 30, TZ)
 
@@ -65,7 +65,7 @@ def test_free_window_when_day_is_empty_or_full(plan):
 
 def test_conflicts_pairs_overlaps_only(plan, week_payload):
     events, _, _ = plan.load_events(week_payload)
-    busy = plan.busy_events(events, re.compile(plan.DEFAULT_IGNORE, re.IGNORECASE))
+    busy = plan.busy_events(events, re.compile(FAMILY, re.IGNORECASE))
 
     assert [(a.title, b.title) for a, b in plan.conflicts(busy)] == [("Standup", "Planning")]
 
