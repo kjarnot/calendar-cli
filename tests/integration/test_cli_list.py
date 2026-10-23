@@ -11,6 +11,7 @@ from calendar_cli import cli
 from calendar_cli.models import CalendarInfo, Event
 from calendar_cli.providers.base import ProviderError
 from calendar_cli.state import resolve_ref
+from tests.conftest import VALID_CONFIG
 
 TZ = ZoneInfo("America/New_York")
 runner = CliRunner()
@@ -216,3 +217,74 @@ def test_help_explains_tz():
     result = runner.invoke(cli.app, ["--help"], env={"COLUMNS": "120"})
 
     assert "add --tz NAME after the command" in result.output
+
+
+def profiled_config(write_config):
+    return str(
+        write_config(VALID_CONFIG.replace('alias = "personal"\n', 'alias = "personal"\nprofile = "home"\n'))
+    )
+
+
+def test_list_by_profile(write_config, providers):
+    result = runner.invoke(cli.app, ["list", "-p", "home", "--config", profiled_config(write_config)])
+
+    assert result.exit_code == 0, result.output
+    assert result.output.startswith("personal (Google · primary)")
+    assert providers["office"].calls == []
+
+
+def test_list_profile_and_calendar_union(write_config, providers):
+    result = runner.invoke(
+        cli.app, ["list", "--profile", "home", "-c", "work", "--config", profiled_config(write_config)]
+    )
+
+    assert result.exit_code == 0, result.output
+    assert "work (M365" in result.output and "personal (Google" in result.output
+
+
+def test_list_unknown_profile_exits_1(write_config, providers):
+    result = runner.invoke(cli.app, ["list", "-p", "office", "--config", profiled_config(write_config)])
+
+    assert result.exit_code == 1
+    assert "unknown profile 'office'; configured: home" in result.output
+
+
+def test_list_simple(write_config, providers):
+    result = runner.invoke(
+        cli.app,
+        ["list", "--simple", "--from", "2026-10-22", "--to", "2026-10-22", "--config", str(write_config())],
+    )
+
+    assert result.exit_code == 0, result.output
+    assert result.stdout.splitlines() == [
+        "Thu 2026-10-22",
+        "  10:00–11:00  Standup",
+        "  14:00–15:00  Retro",
+        "  16:00–17:00  Dentist",
+    ]
+    assert resolve_ref("work:2") == ("work", "w2")  # refs are still saved for update/delete
+
+
+def test_list_simple_sends_errors_to_stderr(write_config, providers):
+    providers["gmail"].error = "token expired"
+
+    result = runner.invoke(
+        cli.app, ["list", "--simple", "--from", "2026-10-22", "--config", str(write_config())]
+    )
+
+    assert result.exit_code == 2
+    assert "token expired" not in result.stdout
+    assert "error: personal: token expired" in result.stderr
+
+
+def test_list_simple_with_json_is_refused(write_config, providers):
+    result = runner.invoke(cli.app, ["list", "--simple", "--json", "--config", str(write_config())])
+
+    assert result.exit_code == 1
+    assert "use --simple or --json, not both" in result.output
+
+
+def test_config_shows_profiles(write_config):
+    result = runner.invoke(cli.app, ["config", "--config", profiled_config(write_config)])
+
+    assert "personal  -> gmail:primary  (profile: home)" in result.output

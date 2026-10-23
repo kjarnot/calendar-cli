@@ -114,6 +114,19 @@ def render_text_by_date(listings: list[CalendarListing], start: datetime) -> str
     return "\n".join(lines)
 
 
+def render_text_simple(listings: list[CalendarListing], start: datetime) -> str:
+    """Day headers and "start–end  title" lines only: no refs, calendar names or categories."""
+    rows = _dated_rows(listings)
+    if not rows:
+        return "(no events)"
+    width = max(12, *(len(time_span(e)) for _, e in rows))
+    lines: list[str] = []
+    for day, day_rows in groupby(rows, key=lambda row: _day(row[1], start)):
+        lines.append(f"{day:%a %Y-%m-%d}")
+        lines.extend(f"  {time_span(event):<{width}} {event.title}" for _, event in day_rows)
+    return "\n".join(lines)
+
+
 def render_json_by_date(listings: list[CalendarListing], start: datetime, end: datetime) -> str:
     days = [
         {

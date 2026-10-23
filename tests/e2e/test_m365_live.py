@@ -72,3 +72,13 @@ def test_list_tz_override_sets_the_live_range():
         "from": "2026-12-01T00:00:00+00:00",
         "to": "2026-12-02T00:00:00+00:00",
     }
+
+
+def test_list_profile_simple():
+    if 'profile = "e2e"' not in E2E_CONFIG.read_text():
+        pytest.skip("the e2e config has no e2e profile")
+    result = run("list", "-p", "e2e", "--from", "2026-12-01", "--to", "2026-12-01", "--simple")
+
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.strip() == "(no events)"
+    assert result.stderr == ""

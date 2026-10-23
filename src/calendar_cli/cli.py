@@ -25,6 +25,7 @@ from calendar_cli.output import (
     render_json_by_date,
     render_text,
     render_text_by_date,
+    render_text_simple,
 )
 from calendar_cli.providers import CalendarProvider, ProviderError, build_provider
 from calendar_cli.providers.base import InputError
@@ -120,7 +121,8 @@ def show_config(config_path: ConfigOption = None) -> None:
         typer.echo(f"  {name}  ({account.provider})  {detail}")
     typer.echo("calendars:")
     for entry in config.calendars:
-        typer.echo(f"  {entry.alias}  -> {entry.account}:{entry.calendar_id}")
+        profile = f"  (profile: {entry.profile})" if entry.profile else ""
+        typer.echo(f"  {entry.alias}  -> {entry.account}:{entry.calendar_id}{profile}")
     if config.category_colors:
         typer.echo("category_colors:")
         for category, color in config.category_colors.items():
@@ -268,8 +270,16 @@ def list_events(
         list[str] | None,
         typer.Option("--calendar", "-c", help="Calendar alias; repeat for several (default all)."),
     ] = None,
+    profile: Annotated[
+        list[str] | None,
+        typer.Option("--profile", "-p", help="Calendars with this profile in config; repeat for several."),
+    ] = None,
     by_date: Annotated[
         bool, typer.Option("--by-date", help="Group by day across all calendars instead of by calendar.")
+    ] = False,
+    simple: Annotated[
+        bool,
+        typer.Option("--simple", help="Plain day-by-day list of times and titles only (implies --by-date)."),
     ] = False,
     timezone: TzOption = None,
     config_path: ConfigOption = None,
@@ -277,9 +287,11 @@ def list_events(
 ) -> None:
     """List events in a date range, grouped by calendar (or by day with --by-date)."""
     config = get_config(config_path, timezone)
+    if simple and as_json:
+        fail("--simple is a text format; use --simple or --json, not both")
     try:
         start, end = parse_range(from_, to, ZoneInfo(config.default_timezone))
-        entries = [config.calendar(alias) for alias in calendar] if calendar else config.calendars
+        entries = config.select_calendars(calendar, profile)
     except (DateParseError, ConfigError) as exc:
         fail(str(exc))
 
@@ -308,7 +320,12 @@ def list_events(
         listings.append(listing)
 
     save_refs(assign_refs(listings))
-    if by_date:
+    if simple:
+        typer.echo(render_text_simple(listings, start))
+        for listing in listings:
+            if listing.error:
+                err.print(f"[red]error:[/red] {escape(listing.alias)}: {escape(listing.error)}")
+    elif by_date:
         typer.echo(
             render_json_by_date(listings, start, end) if as_json else render_text_by_date(listings, start)
         )

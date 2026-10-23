@@ -129,3 +129,51 @@ def test_with_timezone_overrides_without_touching_original(write_config):
 def test_with_timezone_rejects_unknown_names(write_config):
     with pytest.raises(ConfigError, match="unknown timezone 'Mars/Base'; use an IANA name"):
         load_config(write_config()).with_timezone("Mars/Base")
+
+
+PROFILED = (
+    VALID_CONFIG.replace('alias = "work"\n', 'alias = "work"\nprofile = "job"\n').replace(
+        'alias = "personal"\n', 'alias = "personal"\nprofile = "home"\n'
+    )
+    + """
+[[calendars]]
+alias = "family"
+account = "gmail"
+calendar_id = "family@group.calendar.google.com"
+profile = "home"
+"""
+)
+
+
+def test_profiles_in_config_order(write_config):
+    config = load_config(write_config(PROFILED))
+
+    assert config.profiles() == ["job", "home"]
+    assert config.calendar("family").profile == "home"
+
+
+def test_select_calendars(write_config):
+    config = load_config(write_config(PROFILED))
+
+    def aliases(*args):
+        return [c.alias for c in config.select_calendars(*args)]
+
+    assert aliases(None, None) == ["work", "personal", "family"]
+    assert aliases(None, ["home"]) == ["personal", "family"]
+    assert aliases(["work"], ["home"]) == ["work", "personal", "family"]
+    assert aliases(["family"], ["home"]) == ["personal", "family"]  # no duplicates, config order
+    assert aliases(["family"], None) == ["family"]
+
+
+def test_select_unknown_profile_or_alias(write_config):
+    config = load_config(write_config(PROFILED))
+
+    with pytest.raises(ConfigError, match="unknown profile 'work'; configured: job, home"):
+        config.select_calendars(None, ["work"])
+    with pytest.raises(ConfigError, match="unknown calendar 'nope'"):
+        config.select_calendars(["nope"], ["home"])
+
+
+def test_unknown_profile_when_none_configured(write_config):
+    with pytest.raises(ConfigError, match=r"\(none; add profile = \.\.\. to \[\[calendars\]\]\)"):
+        load_config(write_config()).select_calendars(None, ["home"])

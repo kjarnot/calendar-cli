@@ -12,6 +12,7 @@ from calendar_cli.output import (
     render_json_by_date,
     render_text,
     render_text_by_date,
+    render_text_simple,
 )
 
 TZ = ZoneInfo("America/New_York")
@@ -169,3 +170,23 @@ def test_render_json_by_date():
     ]
     assert "raw" not in first_day[0]
     assert payload["errors"] == [{"alias": "other", "error": "token expired"}]
+
+
+def test_render_text_simple_has_only_times_and_titles():
+    listings = sample()
+    assign_refs(listings)
+
+    assert render_text_simple(listings, at(22, 0)).splitlines() == [
+        "Thu 2026-10-22",
+        "  thru Mon 10-26 PTO",
+        "  12:00–13:00    Workout",
+        "Fri 2026-10-23",
+        "  10:00–10:30    Standup",
+    ]
+
+
+def test_render_text_simple_empty():
+    assert (
+        render_text_simple([CalendarListing(alias="x", provider="google", label="G")], at(22, 0))
+        == "(no events)"
+    )

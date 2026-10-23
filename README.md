@@ -10,7 +10,7 @@ Every write is recorded in a journal and can be undone. The full design is in
 | `auth ACCOUNT` | One-time browser sign-in for a Google account |
 | `calendars` | List the calendars each account can see, with their IDs |
 | `categories` | List the category names `--category` accepts, with their colors |
-| `list` | List events in a date range, grouped by calendar (or by day with `--by-date`) |
+| `list` | List events in a date range, grouped by calendar (or by day with `--by-date`, or plainly with `--simple`) |
 | `add` | Create an event |
 | `update REF` | Change an event's title, time, location, description or category |
 | `delete REF` | Delete an event, or a whole recurring series |
@@ -104,16 +104,25 @@ client_id = "....apps.googleusercontent.com"
 client_secret = "..."
 
 # One entry per calendar. Use "primary" for an account's default calendar,
-# or an ID from `calendar-cli calendars`.
+# or an ID from `calendar-cli calendars`. `profile` is optional and groups calendars
+# for `list --profile`.
 [[calendars]]
 alias = "work"
 account = "office"
 calendar_id = "primary"
+profile = "work"
 
 [[calendars]]
 alias = "personal"
 account = "gmail"
 calendar_id = "primary"
+profile = "personal"
+
+[[calendars]]
+alias = "family"
+account = "gmail"
+calendar_id = "family-calendar-id@group.calendar.google.com"
+profile = "personal"
 
 # Google has no categories. These map category names to Google's event colors:
 # lavender, sage, grape, flamingo, banana, tangerine, peacock, graphite, blueberry, basil, tomato.
@@ -129,7 +138,34 @@ calendar-cli list -c work                           # one calendar
 calendar-cli list -c work -c personal --from tomorrow --to friday
 calendar-cli list --from 2026-11-01 --to 2026-11-30 --json
 calendar-cli list --by-date                         # one timeline, all calendars mixed by day
+calendar-cli list -p personal                       # every calendar with profile = "personal"
+calendar-cli list -p personal -c work               # a profile plus another calendar
+calendar-cli list --from 2026-10-22 --to 2026-10-22 --simple
 ```
+
+### Profiles
+
+Give `[[calendars]]` entries the same `profile` to list them together with
+`--profile NAME` (`-p`, repeatable). `--profile` and `--calendar` combine: you get every
+calendar either one names, in config order. `calendar-cli config` shows each calendar's
+profile.
+
+### Simple output
+
+`--simple` prints only day headers and `start–end  title`, with no refs, calendar names or
+categories. It always groups by day, across every selected calendar:
+
+```
+Fri 2026-10-23
+  09:00–18:00  Alex - Work 9am-6pm
+  10:00–11:00  Client call
+  14:15–15:15  Sam - eye appointment
+```
+
+- Errors from a calendar go to stderr, so stdout stays clean, and the exit code is still 2.
+- Refs are still saved, so `update` and `delete` work after a `--simple` listing. Run
+  `list` without `--simple` to see them.
+- `--simple` is a text format and cannot be combined with `--json`.
 
 Output is grouped by calendar, then by day. Each event gets a short **ref** such as
 `work:3`, which `update` and `delete` accept:
@@ -312,6 +348,7 @@ Set `$CALENDAR_CLI_STATE_DIR` to keep state somewhere else.
 | `unknown M365 category` | Use a name from the list in the error, or create it in Outlook |
 | `category ... has no Google color` | Add it under `[category_colors]` |
 | `the saved listing is older than 24 hours` | Run `calendar-cli list` again |
+| `unknown profile '...'` | Add `profile = "..."` to the `[[calendars]]` entries, or use a name from the error |
 | `unknown timezone '...'` | Use an IANA name, e.g. `America/New_York`, `Europe/London`, `UTC` |
 
 ## Development

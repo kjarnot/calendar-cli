@@ -23,7 +23,8 @@ calendar-cli auth <account>                 # one-time Google OAuth login (M365 
 calendar-cli calendars [--account NAME]     # list calendars each account can see, with IDs
 calendar-cli categories [--account NAME] [--json]  # valid --category names: live from Outlook (M365),
                                             # from [category_colors] (Google)
-calendar-cli list [--from DATE] [--to DATE] [--calendar ALIAS ...] [--by-date] [--json]
+calendar-cli list [--from DATE] [--to DATE] [--calendar ALIAS ...] [--profile NAME ...]
+                  [--by-date | --simple] [--json]
 calendar-cli add TITLE --start DATETIME [--end DATETIME | --duration DUR]
                  --calendar ALIAS [--all-day] [--location TEXT] [--description TEXT]
                  [--category NAME] [--attendee EMAIL ...] [--json]
@@ -88,6 +89,7 @@ calendar_id = "primary"
 alias = "personal"
 account = "gmail"
 calendar_id = "primary"
+profile = "personal"   # optional; `list --profile personal` lists every calendar with it
 
 # Google has no categories; map category names to Google's 11 event colors.
 [category_colors]
@@ -174,6 +176,12 @@ One section per day across all calendars, events in time order (ties broken by c
 order), each line showing ref, time, calendar alias and title. Refs are unchanged from the
 default view. An event that began before `--from` is listed under the range's first day.
 Failed calendars are listed under `errors:` at the end.
+
+### 6.1b Simple text (`--simple`)
+
+Day headers and `start–end  title` lines only, grouped by day across the selected calendars
+(it implies `--by-date`). No refs, calendar names or categories; calendar errors go to stderr.
+Refs are still saved. Cannot be combined with `--json`.
 
 ### 6.2 JSON (`--json`)
 

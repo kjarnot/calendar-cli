@@ -71,6 +71,7 @@ class CalendarEntry(BaseModel):
     alias: str
     account: str
     calendar_id: str = "primary"
+    profile: str | None = None
 
 
 class Config(BaseModel):
@@ -113,6 +114,25 @@ class Config(BaseModel):
             if entry.account not in self.accounts:
                 raise ValueError(f"calendar {entry.alias!r} uses unknown account {entry.account!r}")
         return self
+
+    def profiles(self) -> list[str]:
+        """Profile names in the order they first appear in config."""
+        return list(dict.fromkeys(c.profile for c in self.calendars if c.profile))
+
+    def select_calendars(self, aliases: list[str] | None, profiles: list[str] | None) -> list[CalendarEntry]:
+        """Calendars named by alias or by profile (their union, in config order); all if neither is given."""
+        if not aliases and not profiles:
+            return list(self.calendars)
+        for alias in aliases or []:
+            self.calendar(alias)  # raises ConfigError for an unknown alias
+        known = self.profiles()
+        for profile in profiles or []:
+            if profile not in known:
+                raise ConfigError(
+                    f"unknown profile {profile!r}; configured: {', '.join(known) or '(none; add profile = ... to [[calendars]])'}"
+                )
+        wanted_aliases, wanted_profiles = set(aliases or []), set(profiles or [])
+        return [c for c in self.calendars if c.alias in wanted_aliases or c.profile in wanted_profiles]
 
     def with_timezone(self, timezone: str | None) -> "Config":
         """Return a copy that uses `timezone` instead of default_timezone (None keeps the config's)."""
