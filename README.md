@@ -296,6 +296,7 @@ calendar-cli delete work:4 --series        # the whole recurring series
 
 `update`, `delete` and `undo` show what will change and ask `Proceed?`. Add `-y` / `--yes`
 to skip the question. If the event has attendees, the prompt says they will be emailed.
+With `--json`, the summary and the prompt go to stderr, so stdout holds only the JSON.
 
 ## History and undo
 
@@ -373,6 +374,18 @@ Busy rules: all-day events, "Canceled:" events, colleagues' PTO/appointment noti
 family members' events (titles starting Alex, Sam or Jordan; change with
 `--ignore-title`) don't count as busy time. Its tests live in `tests/skill/` and
 `tests/e2e/test_planning_skill_live.py`.
+
+## Claude skill: calendar-cli
+
+`skills/calendar-cli/` is a Claude Code skill for direct calendar work: looking up an
+event, and adding, moving, changing, deleting or undoing one. It reads refs from
+`list --json` right before each write, asks before touching events with attendees or
+someone else's meetings, and leaves planning to `calendar-planning`. It is symlinked into
+`~/.claude-personal/skills/` and `~/.claude/skills/` like the planning skill.
+
+Its tests check that every command in `SKILL.md` exists in the CLI
+(`tests/skill/test_cli_skill_*.py`) and run its add → move → delete → undo recipe live
+(`tests/e2e/test_cli_skill_live.py`).
 
 ## Development
 

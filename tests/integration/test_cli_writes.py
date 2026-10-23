@@ -94,6 +94,27 @@ def test_update_by_short_ref_keeps_length(setup):
     assert (event.title, event.start, event.end) == ("Late standup", at(1, 15), at(1, 16))
 
 
+def test_json_writes_keep_the_summary_off_stdout(setup):
+    provider, run = setup
+    event = provider.add("work", "Gym", at(1, 9), at(1, 10), attendees=[Attendee(email="dan@example.com")])
+    ref = f"work:{event.provider_id}"
+
+    declined = run("delete", ref, "--json", input="n\n")
+    updated = run("update", ref, "-s", "2026-12-01 11:00", "-y", "--json")
+    deleted = run("delete", ref, "-y", "--json")
+    undone = run("undo", "-y", "--json")
+
+    assert declined.exit_code == 1
+    assert "Proceed?" in declined.stderr and "Proceed?" not in declined.stdout
+
+    for result in (updated, deleted, undone):
+        assert result.exit_code == 0, result.output
+        assert json.loads(result.stdout)["event"]["title"] == "Gym"
+    assert "start: 2026-12-01 09:00:00-05:00 -> 2026-12-01 11:00:00-05:00" in updated.stderr
+    assert "will be sent a cancellation" in deleted.stderr
+    assert "will be sent a new invitation" in undone.stderr
+
+
 def test_update_full_ref_and_no_category(setup):
     provider, run = setup
     event = provider.add("work", "Gym", at(1, 9), at(1, 10), categories=["Exercise"])

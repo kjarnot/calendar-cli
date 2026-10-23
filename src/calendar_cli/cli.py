@@ -350,10 +350,11 @@ def resolve_event(config: Config, ref: str) -> tuple[CalendarEntry, str]:
         fail(str(exc))
 
 
-def confirm(lines: list[str], yes: bool) -> None:
+def confirm(lines: list[str], yes: bool, as_json: bool) -> None:
+    # With --json, the summary and prompt go to stderr so stdout stays valid JSON.
     for line in lines:
-        typer.echo(line)
-    if not yes and not typer.confirm("Proceed?", default=False):
+        typer.echo(line, err=as_json)
+    if not yes and not typer.confirm("Proceed?", default=False, err=as_json):
         fail("cancelled; nothing was changed")
 
 
@@ -493,7 +494,7 @@ def update_event(
     changes = EventChanges(**fields)
     lines = [f"Update {describe(current)}"]
     lines += [f"  {name}: {getattr(current, name)!s} -> {value!s}" for name, value in fields.items()]
-    confirm(lines + attendee_warning(current, "an update"), yes)
+    confirm(lines + attendee_warning(current, "an update"), yes, as_json)
     try:
         event, entry = operations.update(provider, cal, current, changes, config.default_timezone)
     except InputError as exc:
@@ -539,7 +540,7 @@ def delete_event(
         lines.append("  note: undo cannot restore a deleted series.")
     elif target.is_occurrence:
         lines.append("  note: only this occurrence is deleted; use --series for the whole series.")
-    confirm(lines + attendee_warning(target, "a cancellation"), yes)
+    confirm(lines + attendee_warning(target, "a cancellation"), yes, as_json)
     try:
         entry = operations.delete(provider, cal, target, series, config.default_timezone)
     except InputError as exc:
@@ -607,7 +608,7 @@ def undo_operation(
         fail(str(exc))
     snapshot = target.after_event() or target.before_event()
     what = "a new invitation" if target.action == "delete" else "an update"
-    confirm([f"Undo {target.action} {target.op_id}: {plan}"] + attendee_warning(snapshot, what), yes)
+    confirm([f"Undo {target.action} {target.op_id}: {plan}"] + attendee_warning(snapshot, what), yes, as_json)
     try:
         event, entry = operations.undo(
             ProviderCache(config).get(cal.account),
