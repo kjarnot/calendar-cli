@@ -1,0 +1,35 @@
+# Example config for the live end-to-end tests. Copy it to ~/.config/calendar-cli/e2e.toml
+# (or point $CALENDAR_CLI_E2E_CONFIG at it), chmod 600, and replace every placeholder.
+# It must name ONLY the dedicated test calendars: the tests create and delete events on them.
+default_timezone = "America/New_York"
+
+# The same accounts as the main config.
+[accounts.office]
+provider = "m365"
+tenant_id = "00000000-0000-0000-0000-000000000000"
+client_id = "00000000-0000-0000-0000-000000000000"
+client_secret = "your-client-secret"
+user = "me@example.com"
+
+[accounts.gmail]
+provider = "google"
+client_id = "your-client-id.apps.googleusercontent.com"
+client_secret = "your-client-secret"
+
+# A calendar named "calendar-cli e2e" on each account; get the IDs from `calendar-cli calendars`.
+# The tests expect these exact aliases.
+[[calendars]]
+alias = "e2e-work"
+profile = "e2e"
+account = "office"
+calendar_id = "m365-test-calendar-id"
+
+[[calendars]]
+alias = "e2e-personal"
+profile = "e2e"
+account = "gmail"
+calendar_id = "google-test-calendar-id@group.calendar.google.com"
+
+# The write-cycle tests set this category on both calendars.
+[category_colors]
+Exercise = "basil"

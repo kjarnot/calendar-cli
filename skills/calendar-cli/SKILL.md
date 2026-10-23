@@ -18,7 +18,8 @@ blocks are the **weekly-training-plan** skill's job.
 **First read `local.md` next to this file, if it exists.** It holds this user's real
 details, kept out of the repo: how to address him, his actual calendar aliases (they
 replace the generic ones below), family members' names, and his title conventions.
-Without it, run `calendar-cli config` to see the configured calendars.
+Without it, run `calendar-cli config` to see the configured calendars; the template is
+`../local.example.md` in the repo.
 
 | Alias | What it is | Profile |
 |---|---|---|

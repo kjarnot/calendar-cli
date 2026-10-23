@@ -30,7 +30,12 @@ def test_list_calendars_follows_pages_and_maps_roles(provider):
             200,
             json={
                 "items": [
-                    {"id": "me@example.org", "summary": "me@example.org", "primary": True, "accessRole": "owner"}
+                    {
+                        "id": "me@example.org",
+                        "summary": "me@example.org",
+                        "primary": True,
+                        "accessRole": "owner",
+                    }
                 ],
                 "nextPageToken": "page-2",
             },

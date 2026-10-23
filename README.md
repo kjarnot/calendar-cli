@@ -61,11 +61,13 @@ calendar-cli list -c work --json | jq -r '.calendars[0].events[] | "\(.start) \(
    ```zsh
    uv tool install --editable .
    ```
-3. Create the config (see [Configuration](#configuration)) and lock it down:
+3. Create the config from the example (see [Configuration](#configuration)), lock it
+   down, and replace the placeholders:
    ```zsh
    mkdir -p ~/.config/calendar-cli
-   $EDITOR ~/.config/calendar-cli/config.toml
+   cp config.example.toml ~/.config/calendar-cli/config.toml
    chmod 600 ~/.config/calendar-cli/config.toml
+   $EDITOR ~/.config/calendar-cli/config.toml
    ```
 4. Check it:
    ```zsh
@@ -85,6 +87,8 @@ calendar-cli list -c work --json | jq -r '.calendars[0].events[] | "\(.start) \(
 
 `~/.config/calendar-cli/config.toml` (or `--config PATH`, or `$CALENDAR_CLI_CONFIG`).
 It holds secrets, so the CLI refuses to run if its mode is wider than `600`.
+Start from [`config.example.toml`](config.example.toml), which a test loads through the
+real config loader so it always matches what the CLI accepts. Its shape:
 
 ```toml
 default_timezone = "America/New_York"
@@ -92,16 +96,17 @@ default_timezone = "America/New_York"
 # M365: an Azure app registration with the Calendars.ReadWrite application permission.
 [accounts.office]
 provider = "m365"
-tenant_id = "..."
-client_id = "..."
-client_secret = "..."
+tenant_id = "00000000-0000-0000-0000-000000000000"
+client_id = "00000000-0000-0000-0000-000000000000"
+client_secret = "your-client-secret"
 user = "me@example.com"
 
 # Google: a Desktop-app OAuth client from Google Cloud Console (Calendar API enabled).
+# Sign in once with `calendar-cli auth gmail`; the token goes to the macOS Keychain.
 [accounts.gmail]
 provider = "google"
-client_id = "....apps.googleusercontent.com"
-client_secret = "..."
+client_id = "your-client-id.apps.googleusercontent.com"
+client_secret = "your-client-secret"
 
 # One entry per calendar. Use "primary" for an account's default calendar,
 # or an ID from `calendar-cli calendars`. `profile` is optional and groups calendars
@@ -363,7 +368,12 @@ both setups always use the version in this repo.
 Both skills are written for a generic user. Personal details (how to address you, your real
 calendar aliases, family members' names for `--ignore-title`, your title conventions) go in
 a `local.md` next to each `SKILL.md`. Git ignores `skills/*/local.md`, so it never leaves
-your machine.
+your machine. Start from the template:
+
+```zsh
+cp skills/local.example.md skills/calendar-cli/local.md
+cp skills/local.example.md skills/calendar-planning/local.md
+```
 
 `skills/calendar-planning/scripts/plan.py` does the planning math on `list --json` output
 (standard library only):
@@ -409,7 +419,12 @@ CALENDAR_CLI_E2E=1 uv run pytest    # everything, including live tests
 
 The live tests read `~/.config/calendar-cli/e2e.toml` (or `$CALENDAR_CLI_E2E_CONFIG`). It
 holds the same accounts as the main config, the test calendars as `e2e-work` and
-`e2e-personal`, and `Exercise = "basil"` under `[category_colors]`.
+`e2e-personal`, and `Exercise = "basil"` under `[category_colors]`. Start from
+[`e2e.example.toml`](e2e.example.toml):
+
+```zsh
+cp e2e.example.toml ~/.config/calendar-cli/e2e.toml && chmod 600 ~/.config/calendar-cli/e2e.toml
+```
 
 Code layout:
 

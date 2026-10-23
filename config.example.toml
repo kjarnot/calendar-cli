@@ -1,0 +1,44 @@
+# Example calendar-cli config. Copy it to ~/.config/calendar-cli/config.toml, chmod 600,
+# and replace every placeholder. The real file holds secrets and must never be committed.
+default_timezone = "America/New_York"
+
+# M365: an Azure app registration with the Calendars.ReadWrite application permission.
+[accounts.office]
+provider = "m365"
+tenant_id = "00000000-0000-0000-0000-000000000000"
+client_id = "00000000-0000-0000-0000-000000000000"
+client_secret = "your-client-secret"
+user = "me@example.com"
+
+# Google: a Desktop-app OAuth client from Google Cloud Console (Calendar API enabled).
+# Sign in once with `calendar-cli auth gmail`; the token goes to the macOS Keychain.
+[accounts.gmail]
+provider = "google"
+client_id = "your-client-id.apps.googleusercontent.com"
+client_secret = "your-client-secret"
+
+# One entry per calendar. Use "primary" for an account's default calendar,
+# or an ID from `calendar-cli calendars`. `profile` is optional and groups calendars
+# for `list --profile`.
+[[calendars]]
+alias = "work"
+account = "office"
+calendar_id = "primary"
+profile = "work"
+
+[[calendars]]
+alias = "personal"
+account = "gmail"
+calendar_id = "primary"
+profile = "personal"
+
+[[calendars]]
+alias = "family"
+account = "gmail"
+calendar_id = "family-calendar-id@group.calendar.google.com"
+profile = "personal"
+
+# Google has no categories. These map category names to Google's event colors:
+# lavender, sage, grape, flamingo, banana, tangerine, peacock, graphite, blueberry, basil, tomato.
+[category_colors]
+Exercise = "basil"
